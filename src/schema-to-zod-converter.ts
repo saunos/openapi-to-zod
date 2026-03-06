@@ -38,6 +38,8 @@ export class SchemaToZodConverter {
    * @param overrideCallback - Optional callback invoked for every schema node after generation.
    * @param strictAdditionalProperties - When `false`, suppress `.strict()` that would otherwise be
    *   emitted for objects with `additionalProperties: false`. Defaults to `true`.
+   * @param alphabetical - When `true`, sort object property keys and enum values alphabetically.
+   *   Defaults to `false`.
    */
   constructor(
     private readonly openApiObject: OpenApiObject,
@@ -49,6 +51,7 @@ export class SchemaToZodConverter {
       | ((context: SchemaOverrideContext) => string | undefined)
       | undefined,
     private readonly strictAdditionalProperties: boolean = true,
+    private readonly alphabetical: boolean = false,
   ) {}
 
   /**
@@ -260,7 +263,8 @@ export class SchemaToZodConverter {
         const requiredList = Array.isArray(schema.required)
           ? new Set(schema.required.filter((value): value is string => typeof value === 'string'))
           : new Set<string>();
-        const entries = sortKeys(properties).map((key) => {
+        const propertyKeys = this.alphabetical ? sortKeys(properties) : Object.keys(properties);
+        const entries = propertyKeys.map((key) => {
           const childExpr = this.convert(
             properties[key],
             `${pointer}/properties/${escapeJsonPointer(key)}`,
@@ -360,11 +364,18 @@ export class SchemaToZodConverter {
 
     const allStrings = values.every((value) => typeof value === 'string');
     if (allStrings) {
-      const literals = values.map((value) => JSON.stringify(value as string)).join(', ');
+      const sorted = this.alphabetical
+        ? [...values].sort((a, b) => String(a).localeCompare(String(b)))
+        : values;
+      const literals = sorted.map((value) => JSON.stringify(value as string)).join(', ');
       return `z.enum([${literals}])`;
     }
 
-    const literalSchemas = values.map((value) => `z.literal(${toLiteral(value)})`);
+    const literalSchemas = this.alphabetical
+      ? [...values]
+          .sort((a, b) => String(a).localeCompare(String(b)))
+          .map((value) => `z.literal(${toLiteral(value)})`)
+      : values.map((value) => `z.literal(${toLiteral(value)})`);
     return unionExpressions(literalSchemas);
   }
 }

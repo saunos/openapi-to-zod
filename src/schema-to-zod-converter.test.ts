@@ -15,6 +15,7 @@ const emptyDoc: OpenApiObject = {
 function createConverter(
   opts: {
     coerce?: boolean;
+    alphabetical?: boolean;
     overrides?: Record<string, string>;
     overrideCallback?: (ctx: SchemaOverrideContext) => string | undefined;
     componentSchemaVarNames?: Record<string, string>;
@@ -29,6 +30,8 @@ function createConverter(
     opts.coerce ?? false,
     opts.overrides ?? {},
     opts.overrideCallback,
+    true,
+    opts.alphabetical ?? false,
   );
   return { converter, diagnostics };
 }
@@ -906,5 +909,71 @@ describe('SchemaToZodConverter - coerce with compositions', () => {
       '#',
     );
     expect(result).toContain('count: z.coerce.number().int()');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Alphabetize
+// ---------------------------------------------------------------------------
+describe('SchemaToZodConverter - alphabetical', () => {
+  it('preserves original property key order when alphabetical is false', () => {
+    const { converter } = createConverter();
+    const result = converter.convert(
+      {
+        type: 'object',
+        properties: {
+          zebra: { type: 'string' },
+          alpha: { type: 'string' },
+          mango: { type: 'string' },
+        },
+        required: ['zebra', 'alpha', 'mango'],
+      },
+      '#',
+    );
+    const zebraIndex = result.indexOf('zebra');
+    const alphaIndex = result.indexOf('alpha');
+    const mangoIndex = result.indexOf('mango');
+    expect(zebraIndex).toBeLessThan(alphaIndex);
+    expect(alphaIndex).toBeLessThan(mangoIndex);
+  });
+
+  it('sorts object property keys alphabetically when alphabetical is true', () => {
+    const { converter } = createConverter({ alphabetical: true });
+    const result = converter.convert(
+      {
+        type: 'object',
+        properties: {
+          zebra: { type: 'string' },
+          alpha: { type: 'string' },
+          mango: { type: 'string' },
+        },
+        required: ['zebra', 'alpha', 'mango'],
+      },
+      '#',
+    );
+    const zebraIndex = result.indexOf('zebra');
+    const alphaIndex = result.indexOf('alpha');
+    const mangoIndex = result.indexOf('mango');
+    expect(alphaIndex).toBeLessThan(mangoIndex);
+    expect(mangoIndex).toBeLessThan(zebraIndex);
+  });
+
+  it('preserves original enum value order when alphabetical is false', () => {
+    const { converter } = createConverter();
+    const result = converter.convert({ type: 'string', enum: ['zebra', 'alpha', 'mango'] }, '#');
+    expect(result).toBe('z.enum(["zebra", "alpha", "mango"])');
+  });
+
+  it('sorts string enum values alphabetically when alphabetical is true', () => {
+    const { converter } = createConverter({ alphabetical: true });
+    const result = converter.convert({ type: 'string', enum: ['zebra', 'alpha', 'mango'] }, '#');
+    expect(result).toBe('z.enum(["alpha", "mango", "zebra"])');
+  });
+
+  it('sorts mixed enum literals alphabetically when alphabetical is true', () => {
+    const { converter } = createConverter({ alphabetical: true });
+    const result = converter.convert({ enum: [3, 1, 2] }, '#');
+    // Sorted by string representation: '1', '2', '3'
+    expect(result).toBe('z.union([z.literal(1), z.literal(2), z.literal(3)])');
   });
 });

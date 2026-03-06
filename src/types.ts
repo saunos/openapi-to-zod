@@ -107,6 +107,12 @@ export type GenerateZodSourceOptions = {
    * undocumented fields).
    */
   strictAdditionalProperties?: boolean;
+  /**
+   * When `true`, sorts object property keys and enum values alphabetically in
+   * the generated Zod expressions. Defaults to `false` (input order is
+   * preserved).
+   */
+  alphabetical?: boolean;
 };
 
 /**

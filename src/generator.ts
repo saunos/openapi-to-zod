@@ -263,6 +263,7 @@ function emitSource(
     options.overrides ?? {},
     options.overrideCallback,
     options.strictAdditionalProperties ?? true,
+    options.alphabetical ?? false,
   );
 
   const lines: string[] = [];

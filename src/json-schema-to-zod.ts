@@ -30,6 +30,12 @@ export type ConvertJsonSchemaToZodOptions = {
    * `.strict()` appended. Defaults to `true`.
    */
   strictAdditionalProperties?: boolean;
+  /**
+   * When `true`, sorts object property keys and enum values alphabetically in
+   * the generated Zod expression. Defaults to `false` (input order is
+   * preserved).
+   */
+  alphabetical?: boolean;
 };
 
 /** Result returned by {@link convertJsonSchemaToZod}. */
@@ -90,6 +96,7 @@ export function convertJsonSchemaToZod(
     {},
     undefined,
     options.strictAdditionalProperties ?? true,
+    options.alphabetical ?? false,
   );
 
   const expression = converter.convert(schema, '#');

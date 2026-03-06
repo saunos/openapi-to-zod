@@ -34,6 +34,8 @@ OPTIONS
   --coerce                   Use z.coerce.* for string, number, boolean, and
                              bigint types (wraps input with the type constructor
                              before parsing).
+  --alphabetical              Sort object property keys and enum values
+                             alphabetically in the generated Zod expressions.
   --override pointer=expr    Replace the auto-generated Zod expression at the
                              given JSON Pointer with a custom expression.
                              Can be specified multiple times.
@@ -60,6 +62,7 @@ EXAMPLES
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()"
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()" \\
                                  --override "#/paths/~1pets/get/queryParams=petsQuerySchema"
+  openapi-to-zod api.json out.ts --alphabetical
 `.trimStart(),
   );
   process.exit(0);
@@ -68,6 +71,7 @@ EXAMPLES
 // Collect flags and their values, then extract positional args
 const flagValueIndices = new Set<number>();
 const coerce = args.includes('--coerce');
+const alphabetical = args.includes('--alphabetical');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -97,6 +101,7 @@ const openApiObject = isUrl
 const options: GenerateZodSourceOptions = {
   strict: true,
   coerce,
+  alphabetical,
   ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
 };
 const result = await generateZodSourceFromOpenApi(openApiObject, options);
