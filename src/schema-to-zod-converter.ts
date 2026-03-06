@@ -289,13 +289,16 @@ export class SchemaToZodConverter {
           return `  ${toPropertyKey(key)}: ${finalExpr},`;
         });
 
+        const isLoose = schema.additionalProperties === true;
+        const objectFn = isLoose ? 'z.looseObject' : 'z.object';
+
         if (entries.length === 0) {
-          expr = 'z.object({})';
+          expr = `${objectFn}({})`;
         } else {
-          expr = `z.object({\n${entries.join('\n')}\n})`;
+          expr = `${objectFn}({\n${entries.join('\n')}\n})`;
         }
 
-        if (schema.additionalProperties === false && this.strictAdditionalProperties) {
+        if (!isLoose && schema.additionalProperties === false && this.strictAdditionalProperties) {
           expr += '.strict()';
         } else if (isObject(schema.additionalProperties)) {
           expr += `.catchall(${this.convert(schema.additionalProperties, `${pointer}/additionalProperties`)})`;

@@ -757,7 +757,7 @@ describe('SchemaToZodConverter - object edge cases', () => {
     expect(result).toContain('"has/slash": z.boolean()');
   });
 
-  it('handles additionalProperties: true (no-op)', () => {
+  it('handles additionalProperties: true with properties using z.looseObject', () => {
     const { converter } = createConverter();
     const result = converter.convert(
       {
@@ -768,10 +768,23 @@ describe('SchemaToZodConverter - object edge cases', () => {
       },
       '#',
     );
-    // additionalProperties: true is the default — no .strict() or .catchall()
+    expect(result).toContain('z.looseObject(');
+    expect(result).not.toContain('z.object(');
     expect(result).not.toContain('.strict()');
     expect(result).not.toContain('.catchall(');
     expect(result).toContain('a: z.string()');
+  });
+
+  it('handles additionalProperties: true with no properties using z.looseObject', () => {
+    const { converter } = createConverter();
+    const result = converter.convert(
+      {
+        type: 'object',
+        additionalProperties: true,
+      },
+      '#',
+    );
+    expect(result).toBe('z.looseObject({})');
   });
 });
 
