@@ -32,12 +32,10 @@ export type GenerateZodSourceOptions = {
    */
   strict?: boolean;
   /**
-   * When `true`, uses `z.coerce.*` for all Zod types that support coercion
-   * (`string`, `number`, `boolean`, and `bigint`). This wraps the input
-   * value with the type's constructor before parsing, e.g. `Number(input)`
-   * for `z.coerce.number()`. Defaults to `false`.
+   * When `true`, emits `z.codec(...)` for `date` and `date-time` string formats,
+   * converting between ISO strings and `Date` objects. Defaults to `false`.
    */
-  coerce?: boolean;
+  useDateCodecs?: boolean;
   /**
    * A map from JSON Pointer to a raw Zod expression string that replaces
    * the auto-generated schema at that location.

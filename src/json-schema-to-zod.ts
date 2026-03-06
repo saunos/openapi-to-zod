@@ -21,10 +21,10 @@ export type ConvertJsonSchemaToZodOptions = {
    */
   strict?: boolean;
   /**
-   * When `true`, emits `z.coerce.*` for string / number / boolean types.
-   * Defaults to `false`.
+   * When `true`, emits `z.codec(...)` for `date` and `date-time` string formats,
+   * converting between ISO strings and `Date` objects. Defaults to `false`.
    */
-  coerce?: boolean;
+  useDateCodecs?: boolean;
   /**
    * When `false`, objects with `additionalProperties: false` will **not** have
    * `.strict()` appended. Defaults to `true`.
@@ -92,7 +92,7 @@ export function convertJsonSchemaToZod(
     stubRoot,
     {},
     diagnostics,
-    options.coerce ?? false,
+    options.useDateCodecs ?? false,
     {},
     undefined,
     options.strictAdditionalProperties ?? true,

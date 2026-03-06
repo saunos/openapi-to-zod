@@ -82,36 +82,49 @@ describe('generateZodSourceFromOpenApi - basics', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Coerce option (integration)
+// useDateCodecs option (integration)
 // ---------------------------------------------------------------------------
-describe('generateZodSourceFromOpenApi - coerce', () => {
-  it('uses z.coerce.* when coerce is true', async () => {
+describe('generateZodSourceFromOpenApi - useDateCodecs', () => {
+  it('emits codec declarations and references when useDateCodecs is true', async () => {
     const { code } = await generate(
       makeSpec({
         schemas: {
-          Count: { type: 'integer', minimum: 0 },
-          Name: { type: 'string' },
-          Active: { type: 'boolean' },
+          CreatedAt: { type: 'string', format: 'date-time' },
+          BirthDate: { type: 'string', format: 'date' },
         },
       }),
-      { coerce: true },
+      { useDateCodecs: true },
     );
-    expect(code).toContain('z.coerce.number().int()');
-    expect(code).toContain('z.coerce.string()');
-    expect(code).toContain('z.coerce.boolean()');
+    // Codec declarations appear once each
+    expect(code).toContain('const isoDatetimeToDate = z.codec(z.iso.datetime(), z.date(),');
+    expect(code).toContain('const isoDateToDate = z.codec(z.iso.date(), z.date(),');
+    // Schemas reference them by name
+    expect(code).toContain('const CreatedAtSchema = isoDatetimeToDate');
+    expect(code).toContain('const BirthDateSchema = isoDateToDate');
   });
 
-  it('does not use z.coerce.* when coerce is false', async () => {
+  it('emits only the datetime codec when only date-time is used', async () => {
+    const { code } = await generate(
+      makeSpec({ schemas: { CreatedAt: { type: 'string', format: 'date-time' } } }),
+      { useDateCodecs: true },
+    );
+    expect(code).toContain('const isoDatetimeToDate =');
+    expect(code).not.toContain('const isoDateToDate =');
+  });
+
+  it('emits plain iso schemas when useDateCodecs is false', async () => {
     const { code } = await generate(
       makeSpec({
         schemas: {
-          Count: { type: 'integer' },
-          Name: { type: 'string' },
+          CreatedAt: { type: 'string', format: 'date-time' },
+          BirthDate: { type: 'string', format: 'date' },
         },
       }),
-      { coerce: false },
+      { useDateCodecs: false },
     );
-    expect(code).not.toContain('z.coerce.');
+    expect(code).toContain('z.iso.datetime()');
+    expect(code).toContain('z.iso.date()');
+    expect(code).not.toContain('z.codec(');
   });
 });
 
@@ -664,10 +677,10 @@ describe('generateZodSourceFromOpenApi - $ref in paths', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Coerce propagation to path operations
+// useDateCodecs propagation to path operations
 // ---------------------------------------------------------------------------
-describe('generateZodSourceFromOpenApi - coerce in path ops', () => {
-  it('coerces query parameter types', async () => {
+describe('generateZodSourceFromOpenApi - useDateCodecs in path ops', () => {
+  it('emits codec for date-time query parameter when useDateCodecs is true', async () => {
     const { code } = await generate(
       makeSpec({
         paths: {
@@ -676,9 +689,9 @@ describe('generateZodSourceFromOpenApi - coerce in path ops', () => {
               operationId: 'search',
               parameters: [
                 {
-                  name: 'limit',
+                  name: 'from',
                   in: 'query',
-                  schema: { type: 'integer' },
+                  schema: { type: 'string', format: 'date-time' },
                 },
               ],
               responses: {
@@ -695,9 +708,10 @@ describe('generateZodSourceFromOpenApi - coerce in path ops', () => {
           },
         },
       }),
-      { coerce: true },
+      { useDateCodecs: true },
     );
-    expect(code).toContain('z.coerce.number()');
+    expect(code).toContain('const isoDatetimeToDate = z.codec(z.iso.datetime(), z.date(),');
+    expect(code).toContain('isoDatetimeToDate');
   });
 });
 

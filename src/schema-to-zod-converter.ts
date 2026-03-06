@@ -33,7 +33,7 @@ export class SchemaToZodConverter {
    * @param openApiObject - The root OpenAPI document (used for `$ref` resolution).
    * @param componentSchemaVarNames - Map from component schema name to the generated variable name.
    * @param diagnostics - Collector for any conversion issues.
-   * @param coerce - When `true`, emit `z.coerce.*` for types that support it.
+   * @param useDateCodecs - When `true`, emit `z.codec(...)` for `date` and `date-time` formats.
    * @param overrides - Map from JSON Pointer to a custom Zod expression that replaces the generated one.
    * @param overrideCallback - Optional callback invoked for every schema node after generation.
    * @param strictAdditionalProperties - When `false`, suppress `.strict()` that would otherwise be
@@ -41,11 +41,13 @@ export class SchemaToZodConverter {
    * @param alphabetical - When `true`, sort object property keys and enum values alphabetically.
    *   Defaults to `false`.
    */
+  private readonly usedCodecs = new Set<'datetime' | 'date'>();
+
   constructor(
     private readonly openApiObject: OpenApiObject,
     private readonly componentSchemaVarNames: Record<string, string>,
     private readonly diagnostics: DiagnosticCollector,
-    private readonly coerce: boolean = false,
+    private readonly useDateCodecs: boolean = false,
     private readonly overrides: Record<string, string> = {},
     private readonly overrideCallback?:
       | ((context: SchemaOverrideContext) => string | undefined)
@@ -53,6 +55,11 @@ export class SchemaToZodConverter {
     private readonly strictAdditionalProperties: boolean = true,
     private readonly alphabetical: boolean = false,
   ) {}
+
+  /** Returns the set of date codec keys that were actually emitted during conversion. */
+  getUsedCodecs(): ReadonlySet<'datetime' | 'date'> {
+    return this.usedCodecs;
+  }
 
   /**
    * Recursively converts a JSON Schema value into a Zod expression string.
@@ -180,15 +187,25 @@ export class SchemaToZodConverter {
         if (format === 'uuid') {
           expr = 'z.uuid()';
         } else if (format === 'date-time') {
-          expr = 'z.iso.datetime()';
+          if (this.useDateCodecs) {
+            this.usedCodecs.add('datetime');
+            expr = 'isoDatetimeToDate';
+          } else {
+            expr = 'z.iso.datetime()';
+          }
         } else if (format === 'date') {
-          expr = 'z.iso.date()';
+          if (this.useDateCodecs) {
+            this.usedCodecs.add('date');
+            expr = 'isoDateToDate';
+          } else {
+            expr = 'z.iso.date()';
+          }
         } else if (format === 'email') {
           expr = 'z.email()';
         } else if (format === 'uri') {
           expr = 'z.url()';
         } else {
-          expr = this.coerce ? 'z.coerce.string()' : 'z.string()';
+          expr = 'z.string()';
           // min/max/regex only apply to plain z.string(), not format schemas
           if (typeof schema.minLength === 'number') {
             expr += `.min(${schema.minLength})`;
@@ -203,7 +220,7 @@ export class SchemaToZodConverter {
         break;
       }
       case 'number': {
-        expr = this.coerce ? 'z.coerce.number()' : 'z.number()';
+        expr = 'z.number()';
         if (typeof schema.minimum === 'number') {
           expr += `.min(${schema.minimum})`;
         }
@@ -223,8 +240,7 @@ export class SchemaToZodConverter {
       }
       case 'integer': {
         // Zod 4: z.int() replaces z.number().int()
-        // z.coerce.int() is not available, so use z.coerce.number() with .int() check
-        expr = this.coerce ? 'z.coerce.number().int()' : 'z.int()';
+        expr = 'z.int()';
         if (typeof schema.minimum === 'number') {
           expr += `.min(${schema.minimum})`;
         }
@@ -240,7 +256,7 @@ export class SchemaToZodConverter {
         break;
       }
       case 'boolean': {
-        expr = this.coerce ? 'z.coerce.boolean()' : 'z.boolean()';
+        expr = 'z.boolean()';
         break;
       }
       case 'null': {

@@ -14,7 +14,7 @@ const emptyDoc: OpenApiObject = {
 /** Creates a converter with sensible defaults for unit testing. */
 function createConverter(
   opts: {
-    coerce?: boolean;
+    useDateCodecs?: boolean;
     alphabetical?: boolean;
     overrides?: Record<string, string>;
     overrideCallback?: (ctx: SchemaOverrideContext) => string | undefined;
@@ -27,7 +27,7 @@ function createConverter(
     opts.doc ?? emptyDoc,
     opts.componentSchemaVarNames ?? {},
     diagnostics,
-    opts.coerce ?? false,
+    opts.useDateCodecs ?? false,
     opts.overrides ?? {},
     opts.overrideCallback,
     true,
@@ -400,46 +400,56 @@ describe('SchemaToZodConverter - $ref', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Coerce option
+// useDateCodecs option
 // ---------------------------------------------------------------------------
-describe('SchemaToZodConverter - coerce option', () => {
-  it('emits z.coerce.string() for string', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'string' }, '#')).toBe('z.coerce.string()');
+describe('SchemaToZodConverter - useDateCodecs option', () => {
+  it('emits reference name for date-time format', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    expect(converter.convert({ type: 'string', format: 'date-time' }, '#')).toBe(
+      'isoDatetimeToDate',
+    );
   });
 
-  it('emits z.coerce.number() for number', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'number' }, '#')).toBe('z.coerce.number()');
+  it('emits reference name for date format', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    expect(converter.convert({ type: 'string', format: 'date' }, '#')).toBe('isoDateToDate');
   });
 
-  it('emits z.coerce.number().int() for integer', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'integer' }, '#')).toBe('z.coerce.number().int()');
+  it('tracks used codecs', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    converter.convert({ type: 'string', format: 'date-time' }, '#/a');
+    converter.convert({ type: 'string', format: 'date' }, '#/b');
+    converter.convert({ type: 'string', format: 'date-time' }, '#/c');
+    expect(converter.getUsedCodecs()).toEqual(new Set(['datetime', 'date']));
   });
 
-  it('emits z.coerce.boolean() for boolean', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'boolean' }, '#')).toBe('z.coerce.boolean()');
+  it('tracks only datetime when only date-time is used', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    converter.convert({ type: 'string', format: 'date-time' }, '#');
+    expect(converter.getUsedCodecs()).toEqual(new Set(['datetime']));
   });
 
-  it('does not coerce format schemas', () => {
-    const { converter } = createConverter({ coerce: true });
+  it('does not affect other format schemas', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
     expect(converter.convert({ type: 'string', format: 'email' }, '#')).toBe('z.email()');
     expect(converter.convert({ type: 'string', format: 'uuid' }, '#')).toBe('z.uuid()');
   });
 
-  it('does not coerce null', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'null' }, '#')).toBe('z.null()');
+  it('does not affect primitive types', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    expect(converter.convert({ type: 'string' }, '#')).toBe('z.string()');
+    expect(converter.convert({ type: 'number' }, '#')).toBe('z.number()');
+    expect(converter.convert({ type: 'integer' }, '#')).toBe('z.int()');
+    expect(converter.convert({ type: 'boolean' }, '#')).toBe('z.boolean()');
   });
 
-  it('preserves constraints with coerce', () => {
-    const { converter } = createConverter({ coerce: true });
-    expect(converter.convert({ type: 'number', minimum: 0 }, '#')).toBe('z.coerce.number().min(0)');
-    expect(converter.convert({ type: 'integer', maximum: 100 }, '#')).toBe(
-      'z.coerce.number().int().max(100)',
+  it('emits plain iso schemas when useDateCodecs is false', () => {
+    const { converter } = createConverter({ useDateCodecs: false });
+    expect(converter.convert({ type: 'string', format: 'date-time' }, '#')).toBe(
+      'z.iso.datetime()',
     );
+    expect(converter.convert({ type: 'string', format: 'date' }, '#')).toBe('z.iso.date()');
+    expect(converter.getUsedCodecs().size).toBe(0);
   });
 });
 
@@ -883,32 +893,38 @@ describe('SchemaToZodConverter - $ref precedence', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Coerce with compositions
+// useDateCodecs with compositions
 // ---------------------------------------------------------------------------
-describe('SchemaToZodConverter - coerce with compositions', () => {
-  it('coerces inner types within anyOf', () => {
-    const { converter } = createConverter({ coerce: true });
-    const result = converter.convert({ anyOf: [{ type: 'string' }, { type: 'number' }] }, '#');
-    expect(result).toBe('z.union([z.coerce.string(), z.coerce.number()])');
+describe('SchemaToZodConverter - useDateCodecs with compositions', () => {
+  it('emits reference for date-time within anyOf', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    const result = converter.convert(
+      { anyOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }] },
+      '#',
+    );
+    expect(result).toBe('z.union([isoDatetimeToDate, z.null()])');
   });
 
-  it('coerces array item types', () => {
-    const { converter } = createConverter({ coerce: true });
-    const result = converter.convert({ type: 'array', items: { type: 'number' } }, '#');
-    expect(result).toBe('z.array(z.coerce.number())');
+  it('emits reference for date-time in array items', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
+    const result = converter.convert(
+      { type: 'array', items: { type: 'string', format: 'date-time' } },
+      '#',
+    );
+    expect(result).toBe('z.array(isoDatetimeToDate)');
   });
 
-  it('coerces object property types', () => {
-    const { converter } = createConverter({ coerce: true });
+  it('emits reference for date-time in object properties', () => {
+    const { converter } = createConverter({ useDateCodecs: true });
     const result = converter.convert(
       {
         type: 'object',
-        properties: { count: { type: 'integer' } },
-        required: ['count'],
+        properties: { createdAt: { type: 'string', format: 'date-time' } },
+        required: ['createdAt'],
       },
       '#',
     );
-    expect(result).toContain('count: z.coerce.number().int()');
+    expect(result).toContain('createdAt: isoDatetimeToDate');
   });
 });
 

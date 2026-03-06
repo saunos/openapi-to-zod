@@ -3,7 +3,7 @@
  * CLI entry point for the OpenAPI-to-Zod code generator.
  *
  * Usage:
- *   openapi-to-zod [inputPath] [outputPath] [--coerce] [--alphabetical]
+ *   openapi-to-zod [inputPath] [outputPath] [--use-date-codecs] [--alphabetical]
  *                  [--no-strict] [--no-strict-additional-properties]
  *                  [--override pointer=expr ...]
  */
@@ -28,9 +28,9 @@ ARGUMENTS
   outputPath   Path for the generated TypeScript file. (default: stdout)
 
 OPTIONS
-  --coerce                         Use z.coerce.* for string, number, boolean,
-                                   and bigint types (wraps input with the type
-                                   constructor before parsing).
+  --use-date-codecs                Emit z.codec(...) for date and date-time
+                                   string formats, converting between ISO
+                                   strings and Date objects.
   --alphabetical                   Sort object property keys and enum values
                                    alphabetically in the generated Zod
                                    expressions.
@@ -61,7 +61,7 @@ OVERRIDE POINTER PATTERNS
 
 EXAMPLES
   openapi-to-zod
-  openapi-to-zod ./spec.json ./out/schemas.ts --coerce
+  openapi-to-zod ./spec.json ./out/schemas.ts --use-date-codecs
   openapi-to-zod https://petstore3.swagger.io/api/v3/openapi.json ./out/schemas.ts
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()"
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()" \\
@@ -75,7 +75,7 @@ EXAMPLES
 
 // Collect flags and their values, then extract positional args
 const flagValueIndices = new Set<number>();
-const coerce = args.includes('--coerce');
+const useDateCodecs = args.includes('--use-date-codecs');
 const alphabetical = args.includes('--alphabetical');
 const strict = !args.includes('--no-strict');
 const strictAdditionalProperties = !args.includes('--no-strict-additional-properties');
@@ -113,7 +113,7 @@ const openApiObject = isUrl
   : JSON.parse(await readFile(inputPath, 'utf8'));
 const options: GenerateZodSourceOptions = {
   strict,
-  coerce,
+  useDateCodecs,
   alphabetical,
   strictAdditionalProperties,
   ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
