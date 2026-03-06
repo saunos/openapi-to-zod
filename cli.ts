@@ -26,9 +26,8 @@ USAGE
   openapi-to-zod [inputPath] [outputPath] [options]
 
 ARGUMENTS
-  inputPath    Path or URL to the OpenAPI JSON file.  (default: ./oapi.json)
-  outputPath   Path for the generated TypeScript file.
-                                                     (default: ./generated/openapi-zod.generated.ts)
+  inputPath    Path or URL to the OpenAPI JSON file.
+  outputPath   Path for the generated TypeScript file. (default: stdout)
 
 OPTIONS
   --coerce                   Use z.coerce.* for string, number, boolean, and
@@ -88,8 +87,14 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const positionalArgs = args.filter((arg, i) => !arg.startsWith('--') && !flagValueIndices.has(i));
-const inputPath = positionalArgs[0] ?? './oapi.json';
-const outputPath = positionalArgs[1] ?? './generated/openapi-zod.generated.ts';
+const inputPath = positionalArgs[0];
+
+if (!inputPath) {
+  console.error('Error: inputPath is required. Use --help for usage information.');
+  process.exit(1);
+}
+
+const outputPath = positionalArgs[1] ?? null;
 
 const isUrl = inputPath.startsWith('http://') || inputPath.startsWith('https://');
 const openApiObject = isUrl
@@ -106,10 +111,13 @@ const options: GenerateZodSourceOptions = {
 };
 const result = await generateZodSourceFromOpenApi(openApiObject, options);
 
-await mkdir(dirname(outputPath), { recursive: true });
-await writeFile(outputPath, result.code, 'utf8');
-
-console.log(`Generated Zod source written to ${outputPath}`);
+if (outputPath) {
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, result.code, 'utf8');
+  console.log(`Generated Zod source written to ${outputPath}`);
+} else {
+  process.stdout.write(result.code);
+}
 if (result.diagnostics.length > 0) {
-  console.log(`Diagnostics: ${result.diagnostics.length}`);
+  console.error(`Diagnostics: ${result.diagnostics.length}`);
 }
