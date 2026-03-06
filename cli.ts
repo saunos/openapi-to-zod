@@ -3,11 +3,9 @@
  * CLI entry point for the OpenAPI-to-Zod code generator.
  *
  * Usage:
- *   openapi-to-zod [inputPath] [outputPath] [--coerce] [--override pointer=expr ...]
- *
- * Defaults:
- *   inputPath  = ./oapi.json
- *   outputPath = ./generated/openapi-zod.generated.ts
+ *   openapi-to-zod [inputPath] [outputPath] [--coerce] [--alphabetical]
+ *                  [--no-strict] [--no-strict-additional-properties]
+ *                  [--override pointer=expr ...]
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -30,15 +28,22 @@ ARGUMENTS
   outputPath   Path for the generated TypeScript file. (default: stdout)
 
 OPTIONS
-  --coerce                   Use z.coerce.* for string, number, boolean, and
-                             bigint types (wraps input with the type constructor
-                             before parsing).
-  --alphabetical              Sort object property keys and enum values
-                             alphabetically in the generated Zod expressions.
-  --override pointer=expr    Replace the auto-generated Zod expression at the
-                             given JSON Pointer with a custom expression.
-                             Can be specified multiple times.
-  -h, --help                 Show this help message and exit.
+  --coerce                         Use z.coerce.* for string, number, boolean,
+                                   and bigint types (wraps input with the type
+                                   constructor before parsing).
+  --alphabetical                   Sort object property keys and enum values
+                                   alphabetically in the generated Zod
+                                   expressions.
+  --no-strict                      Collect all error-level diagnostics instead
+                                   of throwing on the first one.
+  --no-strict-additional-properties
+                                   Do not append .strict() to objects that
+                                   declare additionalProperties: false. Useful
+                                   when the API may return undocumented fields.
+  --override pointer=expr          Replace the auto-generated Zod expression at
+                                   the given JSON Pointer with a custom
+                                   expression. Can be specified multiple times.
+  -h, --help                       Show this help message and exit.
 
 OVERRIDE POINTER PATTERNS
   Schema-level (replaces a single schema node):
@@ -62,6 +67,7 @@ EXAMPLES
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()" \\
                                  --override "#/paths/~1pets/get/queryParams=petsQuerySchema"
   openapi-to-zod api.json out.ts --alphabetical
+  openapi-to-zod api.json out.ts --no-strict --no-strict-additional-properties
 `.trimStart(),
   );
   process.exit(0);
@@ -71,6 +77,8 @@ EXAMPLES
 const flagValueIndices = new Set<number>();
 const coerce = args.includes('--coerce');
 const alphabetical = args.includes('--alphabetical');
+const strict = !args.includes('--no-strict');
+const strictAdditionalProperties = !args.includes('--no-strict-additional-properties');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -104,9 +112,10 @@ const openApiObject = isUrl
     })
   : JSON.parse(await readFile(inputPath, 'utf8'));
 const options: GenerateZodSourceOptions = {
-  strict: true,
+  strict,
   coerce,
   alphabetical,
+  strictAdditionalProperties,
   ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
 };
 const result = await generateZodSourceFromOpenApi(openApiObject, options);
