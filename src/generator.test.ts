@@ -882,7 +882,37 @@ describe('generateZodSourceFromOpenApi – media type without schema', () => {
         },
       }),
     );
-    expect(diagnostics.some((d) => d.code === 'missing-media-schema')).toBe(true);
+    expect(
+      diagnostics.some((d) => d.code === 'missing-media-schema' && d.level === 'warning'),
+    ).toBe(true);
+  });
+
+  it('does not throw in strict mode when response has only example and no schema', async () => {
+    const { diagnostics } = await generateZodSourceFromOpenApi(
+      makeSpec({
+        paths: {
+          '/auth/callback': {
+            get: {
+              operationId: 'authCallback',
+              responses: {
+                '302': {
+                  description: 'Redirect',
+                  content: {
+                    'text/plain': {
+                      example: 'Redirects to: {redirect_url}?access_token={token}',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      { strict: true },
+    );
+    expect(
+      diagnostics.some((d) => d.code === 'missing-media-schema' && d.level === 'warning'),
+    ).toBe(true);
   });
 });
 
