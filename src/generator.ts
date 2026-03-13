@@ -501,6 +501,7 @@ function extractContentSchemas(
         'missing-media-schema',
         `Media type "${mediaType}" does not have a schema`,
         `${pointer}/${escapeJsonPointer(mediaType)}`,
+        'warning',
       );
       continue;
     }
