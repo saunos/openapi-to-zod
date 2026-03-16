@@ -142,6 +142,48 @@ export type SchemaOverrideContext = {
   generatedExpression: string;
 };
 
+/** Options controlling the behaviour of {@link generateZodSourceFromJsonSchema}. */
+export type GenerateJsonSchemaZodSourceOptions = {
+  /**
+   * When `true`, the generator throws on the first error-level diagnostic
+   * instead of collecting it. Defaults to `true`.
+   */
+  strict?: boolean;
+  /**
+   * When `true`, emits `z.codec(...)` for `date` and `date-time` string formats,
+   * converting between ISO strings and `Date` objects. Defaults to `false`.
+   */
+  useDateCodecs?: boolean;
+  /**
+   * A map from JSON Pointer to a raw Zod expression string that replaces
+   * the auto-generated schema at that location.
+   *
+   * Pointer patterns:
+   * - Root schema:  `#`
+   * - Named def:    `#/$defs/MyModel`
+   * - Property:     `#/$defs/MyModel/properties/myField`
+   */
+  overrides?: Record<string, string>;
+  /**
+   * When `false`, objects with `additionalProperties: false` will **not** have
+   * `.strict()` appended. Defaults to `true`.
+   */
+  strictAdditionalProperties?: boolean;
+  /**
+   * When `true`, sorts object property keys and enum values alphabetically.
+   * Defaults to `false`.
+   */
+  alphabetical?: boolean;
+};
+
+/** The result returned by {@link generateZodSourceFromJsonSchema}. */
+export type GenerateJsonSchemaZodSourceResult = {
+  /** Generated TypeScript source code containing Zod schemas. */
+  code: string;
+  /** Diagnostics accumulated during generation. */
+  diagnostics: GeneratorDiagnostic[];
+};
+
 /** The result returned by {@link generateZodSourceFromOpenApi}. */
 export type GenerateZodSourceResult = {
   /** Generated TypeScript source code containing Zod schemas. */

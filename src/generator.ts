@@ -35,6 +35,8 @@ import {
   sortKeys,
   toIdentifier,
   toPropertyKey,
+  topoSortSchemaNames,
+  unescapeJsonPointer,
 } from './json-schema-utils';
 
 /**
@@ -269,8 +271,13 @@ function emitSource(
   // Collect body lines first so we know which codecs were used before assembling the header
   const bodyLines: string[] = [];
 
-  // Emit component schema variables (for cross-references via z.lazy)
-  for (const schemaName of sortKeys(model.components.schemas)) {
+  // Emit component schema variables in dependency-first order so that direct
+  // variable references (no z.lazy) are always declared before use.
+  const componentSchemaOrder = topoSortSchemaNames(model.components.schemas, (ref) => {
+    const m = /^#\/components\/schemas\/([^/]+)$/.exec(ref);
+    return m ? unescapeJsonPointer(m[1] ?? '') : undefined;
+  });
+  for (const schemaName of componentSchemaOrder) {
     const schemaVarName = componentSchemaVarNames[schemaName];
     const schemaExpr = converter.convert(
       model.components.schemas[schemaName],
@@ -279,7 +286,7 @@ function emitSource(
     bodyLines.push(`const ${schemaVarName} = ${schemaExpr};`);
   }
 
-  if (sortKeys(model.components.schemas).length > 0) {
+  if (componentSchemaOrder.length > 0) {
     bodyLines.push('');
   }
 

@@ -382,13 +382,11 @@ describe('SchemaToZodConverter - allOf', () => {
 // $ref resolution
 // ---------------------------------------------------------------------------
 describe('SchemaToZodConverter - $ref', () => {
-  it('resolves component schema ref as z.lazy()', () => {
+  it('resolves component schema ref as direct variable reference', () => {
     const { converter } = createConverter({
       componentSchemaVarNames: { Pet: 'PetSchema' },
     });
-    expect(converter.convert({ $ref: '#/components/schemas/Pet' }, '#')).toBe(
-      'z.lazy(() => PetSchema)',
-    );
+    expect(converter.convert({ $ref: '#/components/schemas/Pet' }, '#')).toBe('PetSchema');
   });
 
   it('emits z.unknown() for unknown ref', () => {
@@ -821,7 +819,7 @@ describe('SchemaToZodConverter - composition edge cases', () => {
       },
       '#',
     );
-    expect(result).toBe('z.union([z.lazy(() => CatSchema), z.lazy(() => DogSchema)])');
+    expect(result).toBe('z.union([CatSchema, DogSchema])');
   });
 
   it('converts oneOf with $ref members', () => {
@@ -834,7 +832,7 @@ describe('SchemaToZodConverter - composition edge cases', () => {
       },
       '#',
     );
-    expect(result).toBe('z.union([z.lazy(() => ASchema), z.lazy(() => BSchema)])');
+    expect(result).toBe('z.union([ASchema, BSchema])');
   });
 
   it('converts allOf mixing $ref and inline schemas', () => {
@@ -851,7 +849,7 @@ describe('SchemaToZodConverter - composition edge cases', () => {
       '#',
     );
     expect(result).toContain('z.intersection(');
-    expect(result).toContain('z.lazy(() => BaseSchema)');
+    expect(result).toContain('BaseSchema');
     expect(result).toContain('extra: z.string()');
   });
 
@@ -867,11 +865,10 @@ describe('SchemaToZodConverter - composition edge cases', () => {
 // Recursive / self-referencing schemas
 // ---------------------------------------------------------------------------
 describe('SchemaToZodConverter - recursive schemas', () => {
-  it('handles self-referencing $ref via z.lazy()', () => {
+  it('handles self-referencing $ref via getter syntax', () => {
     const { converter } = createConverter({
       componentSchemaVarNames: { TreeNode: 'TreeNodeSchema' },
     });
-    // A property that references the same component
     const result = converter.convert(
       {
         type: 'object',
@@ -887,7 +884,7 @@ describe('SchemaToZodConverter - recursive schemas', () => {
       '#',
     );
     expect(result).toContain('value: z.string()');
-    expect(result).toContain('z.array(z.lazy(() => TreeNodeSchema))');
+    expect(result).toContain('get children() { return z.array(TreeNodeSchema).optional(); }');
   });
 });
 
@@ -901,7 +898,7 @@ describe('SchemaToZodConverter - $ref precedence', () => {
     });
     // In OpenAPI 3.1, $ref takes precedence
     const result = converter.convert({ $ref: '#/components/schemas/Pet', type: 'string' }, '#');
-    expect(result).toBe('z.lazy(() => PetSchema)');
+    expect(result).toBe('PetSchema');
   });
 });
 

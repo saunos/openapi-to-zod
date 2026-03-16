@@ -7,6 +7,7 @@
  */
 
 export { generateZodSourceFromOpenApi } from './generator';
+export { generateZodSourceFromJsonSchema } from './json-schema-source-generator';
 export { convertJsonSchemaToZod } from './json-schema-to-zod';
 export type {
   ConvertJsonSchemaToZodOptions,
@@ -15,6 +16,8 @@ export type {
 export type {
   GenerateZodSourceOptions,
   GenerateZodSourceResult,
+  GenerateJsonSchemaZodSourceOptions,
+  GenerateJsonSchemaZodSourceResult,
   GeneratorDiagnostic,
   DiagnosticLevel,
   OpenApiObject,
