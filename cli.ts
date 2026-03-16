@@ -10,8 +10,8 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { GenerateZodSourceOptions } from './src/index.ts';
-import { generateZodSourceFromOpenApi } from './src/index.ts';
+import type { GenerateZodSourceOptions, GenerateJsonSchemaZodSourceOptions } from './src/index.ts';
+import { generateZodSourceFromOpenApi, generateZodSourceFromJsonSchema } from './src/index.ts';
 
 const args = process.argv.slice(2);
 
@@ -28,6 +28,10 @@ ARGUMENTS
   outputPath   Path for the generated TypeScript file. (default: stdout)
 
 OPTIONS
+  --json-schema                    Treat the input as a plain JSON Schema
+                                   document (with $defs) instead of an
+                                   OpenAPI spec. Emits "schema" and "defs"
+                                   exports rather than "paths"/"components".
   --use-date-codecs                Emit z.codec(...) for date and date-time
                                    string formats, converting between ISO
                                    strings and Date objects.
@@ -79,6 +83,7 @@ const useDateCodecs = args.includes('--use-date-codecs');
 const alphabetical = args.includes('--alphabetical');
 const strict = !args.includes('--no-strict');
 const strictAdditionalProperties = !args.includes('--no-strict-additional-properties');
+const jsonSchemaMode = args.includes('--json-schema');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -105,20 +110,28 @@ if (!inputPath) {
 const outputPath = positionalArgs[1] ?? null;
 
 const isUrl = inputPath.startsWith('http://') || inputPath.startsWith('https://');
-const openApiObject = isUrl
+const inputObject = isUrl
   ? await fetch(inputPath).then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${inputPath}`);
       return res.json();
     })
   : JSON.parse(await readFile(inputPath, 'utf8'));
-const options: GenerateZodSourceOptions = {
-  strict,
-  useDateCodecs,
-  alphabetical,
-  strictAdditionalProperties,
-  ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
-};
-const result = await generateZodSourceFromOpenApi(openApiObject, options);
+
+const result = jsonSchemaMode
+  ? generateZodSourceFromJsonSchema(inputObject, {
+      strict,
+      useDateCodecs,
+      alphabetical,
+      strictAdditionalProperties,
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+    } satisfies GenerateJsonSchemaZodSourceOptions)
+  : await generateZodSourceFromOpenApi(inputObject, {
+      strict,
+      useDateCodecs,
+      alphabetical,
+      strictAdditionalProperties,
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+    } satisfies GenerateZodSourceOptions);
 
 if (outputPath) {
   await mkdir(dirname(outputPath), { recursive: true });

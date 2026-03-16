@@ -281,12 +281,21 @@ export class SchemaToZodConverter {
           : new Set<string>();
         const propertyKeys = this.alphabetical ? sortKeys(properties) : Object.keys(properties);
         const entries = propertyKeys.map((key) => {
+          const propSchema = properties[key];
           const childExpr = this.convert(
-            properties[key],
+            propSchema,
             `${pointer}/properties/${escapeJsonPointer(key)}`,
           );
           const finalExpr = requiredList.has(key) ? childExpr : `${childExpr}.optional()`;
-          return `  ${toPropertyKey(key)}: ${finalExpr},`;
+          // Use getter syntax for properties that contain $refs so that
+          // TypeScript does not complain about circular initializer references.
+          // Getters defer evaluation, breaking the cycle. Only valid for
+          // identifier-shaped keys (quoted keys don't support getter syntax).
+          const propKey = toPropertyKey(key);
+          if (schemaContainsRef(propSchema) && propKey === key) {
+            return `  get ${propKey}() { return ${finalExpr}; },`;
+          }
+          return `  ${propKey}: ${finalExpr},`;
         });
 
         const isLoose = schema.additionalProperties === true;
@@ -349,7 +358,18 @@ export class SchemaToZodConverter {
         );
         return 'z.unknown()';
       }
-      return `z.lazy(() => ${varName})`;
+      return varName;
+    }
+
+    const defMatch = /^#\/\$defs\/([^/]+)$/.exec(ref);
+    if (defMatch) {
+      const defName = unescapeJsonPointer(defMatch[1] ?? '');
+      const varName = this.componentSchemaVarNames[defName];
+      if (!varName) {
+        this.diagnostics.push('missing-component-schema', `Unknown $def ref: ${ref}`, pointer);
+        return 'z.unknown()';
+      }
+      return varName;
     }
 
     const resolved = resolveRef(ref, this.openApiObject, pointer, this.diagnostics);
@@ -397,6 +417,24 @@ export class SchemaToZodConverter {
       : values.map((value) => `z.literal(${toLiteral(value)})`);
     return unionExpressions(literalSchemas);
   }
+}
+
+/**
+ * Returns `true` if `schema` contains a `$ref` anywhere in its tree.
+ *
+ * Used to decide whether an object property should be emitted as a getter
+ * (which defers evaluation and avoids TypeScript's circular-initializer error)
+ * or as a plain property assignment.
+ */
+function schemaContainsRef(schema: unknown): boolean {
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
+    return false;
+  }
+  const obj = schema as Record<string, unknown>;
+  if (typeof obj.$ref === 'string') return true;
+  return Object.values(obj).some((v) =>
+    Array.isArray(v) ? v.some(schemaContainsRef) : schemaContainsRef(v),
+  );
 }
 
 /**

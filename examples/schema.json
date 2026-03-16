@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "UserId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Email": {
+      "type": "string",
+      "format": "email"
+    },
+    "Url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "IsoDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "IsoDateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "Username": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 32,
+      "pattern": "^[a-zA-Z0-9_]+$"
+    },
+    "Score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "multipleOf": 0.5
+    },
+    "Port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "ExclusiveRange": {
+      "type": "number",
+      "exclusiveMinimum": 0.01,
+      "exclusiveMaximum": 99.99
+    },
+    "Status": {
+      "type": "string",
+      "enum": ["active", "inactive", "pending"]
+    },
+    "MixedEnum": {
+      "enum": [1, "two", true, null]
+    },
+    "Constant": {
+      "const": "fixed-value"
+    },
+    "NullableString": {
+      "type": "string",
+      "nullable": true
+    },
+    "MultiType": {
+      "type": ["string", "null"]
+    },
+    "StringOrNumber": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" }
+      ]
+    },
+    "OneOfVariants": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "integer", "minimum": 0 }
+      ]
+    },
+    "AllOfMerged": {
+      "allOf": [
+        { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] },
+        { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] }
+      ]
+    },
+    "Tag": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/UserId" },
+        "label": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "StrictObject": {
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "LooseObject": {
+      "type": "object",
+      "properties": {
+        "known": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "CatchallObject": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/UserId" }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "EmptyObject": {
+      "type": "object",
+      "properties": {}
+    },
+    "StringArray": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "BoundedArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Tag" },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "Address": {
+      "type": "object",
+      "required": ["street", "city", "country"],
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "zip": { "type": "string", "pattern": "^[0-9]{5}$" },
+        "country": { "type": "string", "minLength": 2, "maxLength": 2 }
+      }
+    },
+    "User": {
+      "type": "object",
+      "required": ["id", "username", "email", "createdAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/UserId" },
+        "username": { "$ref": "#/$defs/Username" },
+        "email": { "$ref": "#/$defs/Email" },
+        "homepage": { "$ref": "#/$defs/Url" },
+        "score": { "$ref": "#/$defs/Score" },
+        "status": { "$ref": "#/$defs/Status" },
+        "address": { "$ref": "#/$defs/Address" },
+        "tags": { "$ref": "#/$defs/StringArray" },
+        "createdAt": { "$ref": "#/$defs/IsoDateTime" },
+        "deletedAt": { "$ref": "#/$defs/NullableString" },
+        "friends": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/User" }
+        }
+      }
+    },
+    "PaginatedUsers": {
+      "type": "object",
+      "required": ["items", "total"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/User" }
+        },
+        "total": { "type": "integer", "minimum": 0 },
+        "nextCursor": { "type": "string" }
+      }
+    }
+  },
+  "title": "ApiResponse",
+  "description": "Comprehensive JSON Schema fixture covering all supported cases.",
+  "type": "object",
+  "required": ["users"],
+  "properties": {
+    "users": { "$ref": "#/$defs/PaginatedUsers" },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "generatedAt": { "$ref": "#/$defs/IsoDateTime" }
+      }
+    }
+  }
+}

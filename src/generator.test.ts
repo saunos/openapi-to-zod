@@ -513,7 +513,7 @@ describe('generateZodSourceFromOpenApi - component cross-references', () => {
     );
     expect(code).toContain('AddressSchema');
     expect(code).toContain('PersonSchema');
-    expect(code).toContain('z.lazy(() => AddressSchema)');
+    expect(code).toContain('get address() { return AddressSchema; }');
   });
 
   it('handles recursive component schema', async () => {
@@ -535,7 +535,7 @@ describe('generateZodSourceFromOpenApi - component cross-references', () => {
       }),
     );
     expect(code).toContain('CategorySchema');
-    expect(code).toContain('z.lazy(() => CategorySchema)');
+    expect(code).toContain('get children() { return z.array(CategorySchema).optional(); }');
   });
 });
 
@@ -671,8 +671,8 @@ describe('generateZodSourceFromOpenApi - $ref in paths', () => {
       }),
     );
     expect(code).toContain('NewPetSchema');
-    // The path operation should reference the component via lazy
-    expect(code).toContain('z.lazy(() => NewPetSchema)');
+    // The path operation should reference the component directly
+    expect(code).toContain('"application/json": NewPetSchema');
   });
 });
 

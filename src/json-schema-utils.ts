@@ -388,6 +388,92 @@ export function sortKeys(object: PlainObject): string[] {
 }
 
 /**
+ * Sorts schema names topologically so that each schema is emitted after all
+ * schemas it depends on (via `$ref`).
+ *
+ * Schemas that are part of a cycle (mutual or self-references) are appended
+ * at the end in alphabetical order — they rely on getter properties to break
+ * the TypeScript circular-initializer error at runtime.
+ *
+ * @param schemas - Map of schema name → raw schema value.
+ * @param refToName - Extracts the local schema name from a `$ref` string,
+ *   e.g. `"#/components/schemas/Foo"` → `"Foo"`. Return `undefined` for refs
+ *   that don't resolve to a known schema name.
+ * @returns Schema names in dependency-first order.
+ */
+export function topoSortSchemaNames(
+  schemas: Record<string, unknown>,
+  refToName: (ref: string) => string | undefined,
+): string[] {
+  const names = Object.keys(schemas).sort((a, b) => a.localeCompare(b));
+
+  // Build direct dependency sets (excluding self-refs and unknown refs)
+  const deps = new Map<string, Set<string>>();
+  for (const name of names) {
+    const directDeps = new Set<string>();
+    for (const ref of collectSchemaRefs(schemas[name])) {
+      const dep = refToName(ref);
+      if (dep && dep !== name && dep in schemas) {
+        directDeps.add(dep);
+      }
+    }
+    deps.set(name, directDeps);
+  }
+
+  // Kahn's algorithm (BFS topological sort)
+  // Build reverse graph: dep → [schemas that depend on dep]
+  const inDegree = new Map<string, number>(names.map((n) => [n, 0]));
+  const revGraph = new Map<string, string[]>(names.map((n) => [n, []]));
+
+  for (const [name, depSet] of deps) {
+    for (const dep of depSet) {
+      revGraph.get(dep)!.push(name);
+      inDegree.set(name, (inDegree.get(name) ?? 0) + 1);
+    }
+  }
+
+  const queue = names.filter((n) => inDegree.get(n) === 0);
+  const result: string[] = [];
+
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    result.push(name);
+    for (const dependent of revGraph.get(name) ?? []) {
+      const deg = (inDegree.get(dependent) ?? 0) - 1;
+      inDegree.set(dependent, deg);
+      if (deg === 0) {
+        // Insert in sorted position to keep output deterministic
+        const insertAt = queue.findIndex((q) => q.localeCompare(dependent) > 0);
+        if (insertAt === -1) queue.push(dependent);
+        else queue.splice(insertAt, 0, dependent);
+      }
+    }
+  }
+
+  // Append cyclic schemas (those never reached with in-degree 0) alphabetically
+  for (const name of names) {
+    if (!result.includes(name)) result.push(name);
+  }
+
+  return result;
+}
+
+/**
+ * Recursively collects all `$ref` strings from a schema value.
+ */
+export function collectSchemaRefs(schema: unknown): string[] {
+  if (typeof schema !== 'object' || schema === null) return [];
+  if (Array.isArray(schema)) return schema.flatMap(collectSchemaRefs);
+  const obj = schema as Record<string, unknown>;
+  const refs: string[] = [];
+  if (typeof obj.$ref === 'string') refs.push(obj.$ref);
+  for (const value of Object.values(obj)) {
+    refs.push(...collectSchemaRefs(value));
+  }
+  return refs;
+}
+
+/**
  * Converts an arbitrary string into a valid JavaScript identifier.
  *
  * Non-alphanumeric characters are replaced with underscores, consecutive
