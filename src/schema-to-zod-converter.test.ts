@@ -16,6 +16,7 @@ function createConverter(
   opts: {
     useDateCodecs?: boolean;
     alphabetical?: boolean;
+    defaultNonNullable?: boolean;
     overrides?: Record<string, string>;
     overrideCallback?: (ctx: SchemaOverrideContext) => string | undefined;
     componentSchemaVarNames?: Record<string, string>;
@@ -32,6 +33,7 @@ function createConverter(
     opts.overrideCallback,
     true,
     opts.alphabetical ?? false,
+    opts.defaultNonNullable ?? true,
   );
   return { converter, diagnostics };
 }
@@ -783,6 +785,39 @@ describe('SchemaToZodConverter - object edge cases', () => {
       '#',
     );
     expect(result).toBe('z.looseObject({})');
+  });
+
+  it('uses .default(value) instead of .optional() for non-required properties with default when enabled', () => {
+    const { converter } = createConverter();
+    const result = converter.convert(
+      {
+        type: 'object',
+        properties: {
+          count: { type: 'integer', default: 1 },
+          name: { type: 'string' },
+        },
+      },
+      '#',
+    );
+
+    expect(result).toContain('count: z.int().default(1),');
+    expect(result).toContain('name: z.string().optional(),');
+  });
+
+  it('keeps .optional() for non-required properties with default when explicitly disabled', () => {
+    const { converter } = createConverter({ defaultNonNullable: false });
+    const result = converter.convert(
+      {
+        type: 'object',
+        properties: {
+          count: { type: 'integer', default: 1 },
+        },
+      },
+      '#',
+    );
+
+    expect(result).toContain('count: z.int().optional(),');
+    expect(result).not.toContain('.default(1)');
   });
 });
 

@@ -266,6 +266,7 @@ function emitSource(
     options.overrideCallback,
     options.strictAdditionalProperties ?? true,
     options.alphabetical ?? false,
+    options.defaultNonNullable ?? true,
   );
 
   // Collect body lines first so we know which codecs were used before assembling the header

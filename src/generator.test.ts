@@ -129,6 +129,51 @@ describe('generateZodSourceFromOpenApi - useDateCodecs', () => {
 });
 
 // ---------------------------------------------------------------------------
+// defaultNonNullable option
+// ---------------------------------------------------------------------------
+describe('generateZodSourceFromOpenApi - defaultNonNullable', () => {
+  it('emits .default(value) for non-required properties with defaults by default', async () => {
+    const { code } = await generate(
+      makeSpec({
+        schemas: {
+          User: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              role: { type: 'string', default: 'user' },
+            },
+            required: ['name'],
+          },
+        },
+      }),
+    );
+
+    expect(code).toContain('name: z.string()');
+    expect(code).toContain('role: z.string().default("user")');
+    expect(code).not.toContain('role: z.string().optional()');
+  });
+
+  it('can be disabled explicitly', async () => {
+    const { code } = await generate(
+      makeSpec({
+        schemas: {
+          User: {
+            type: 'object',
+            properties: {
+              role: { type: 'string', default: 'user' },
+            },
+          },
+        },
+      }),
+      { defaultNonNullable: false },
+    );
+
+    expect(code).toContain('role: z.string().optional()');
+    expect(code).not.toContain('role: z.string().default("user")');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Static overrides (integration)
 // ---------------------------------------------------------------------------
 describe('generateZodSourceFromOpenApi - static overrides', () => {

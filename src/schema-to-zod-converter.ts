@@ -40,6 +40,9 @@ export class SchemaToZodConverter {
    *   emitted for objects with `additionalProperties: false`. Defaults to `true`.
    * @param alphabetical - When `true`, sort object property keys and enum values alphabetically.
    *   Defaults to `false`.
+   * @param defaultNonNullable - When `true`, non-required object properties that define a JSON
+   *   Schema `default` value are emitted as `.default(value)` instead of `.optional()`. Defaults
+   *   to `true`.
    */
   private readonly usedCodecs = new Set<'datetime' | 'date'>();
 
@@ -54,6 +57,7 @@ export class SchemaToZodConverter {
       | undefined,
     private readonly strictAdditionalProperties: boolean = true,
     private readonly alphabetical: boolean = false,
+    private readonly defaultNonNullable: boolean = true,
   ) {}
 
   /** Returns the set of date codec keys that were actually emitted during conversion. */
@@ -286,7 +290,18 @@ export class SchemaToZodConverter {
             propSchema,
             `${pointer}/properties/${escapeJsonPointer(key)}`,
           );
-          const finalExpr = requiredList.has(key) ? childExpr : `${childExpr}.optional()`;
+          let finalExpr = childExpr;
+          if (!requiredList.has(key)) {
+            if (
+              this.defaultNonNullable &&
+              isObject(propSchema) &&
+              Object.prototype.hasOwnProperty.call(propSchema, 'default')
+            ) {
+              finalExpr = `${childExpr}.default(${toLiteral(propSchema.default)})`;
+            } else {
+              finalExpr = `${childExpr}.optional()`;
+            }
+          }
           // Use getter syntax for properties that contain $refs so that
           // TypeScript does not complain about circular initializer references.
           // Getters defer evaluation, breaking the cycle. Only valid for

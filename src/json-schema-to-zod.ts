@@ -36,6 +36,12 @@ export type ConvertJsonSchemaToZodOptions = {
    * preserved).
    */
   alphabetical?: boolean;
+  /**
+   * When `true`, non-required object properties that define a JSON Schema
+   * `default` are emitted as `.default(value)` instead of `.optional()`.
+   * Defaults to `true`.
+   */
+  defaultNonNullable?: boolean;
 };
 
 /** Result returned by {@link convertJsonSchemaToZod}. */
@@ -97,6 +103,7 @@ export function convertJsonSchemaToZod(
     undefined,
     options.strictAdditionalProperties ?? true,
     options.alphabetical ?? false,
+    options.defaultNonNullable ?? true,
   );
 
   const expression = converter.convert(schema, '#');

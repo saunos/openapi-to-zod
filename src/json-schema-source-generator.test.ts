@@ -288,4 +288,31 @@ describe('generateZodSourceFromJsonSchema - options', () => {
       ),
     ).toThrow();
   });
+
+  it('emits .default(value) for non-required properties with defaults by default', () => {
+    const { code } = generate({
+      type: 'object',
+      properties: {
+        retries: { type: 'integer', default: 3 },
+      },
+    });
+
+    expect(code).toContain('retries: z.int().default(3)');
+    expect(code).not.toContain('retries: z.int().optional()');
+  });
+
+  it('can disable default-value promotion explicitly', () => {
+    const { code } = generate(
+      {
+        type: 'object',
+        properties: {
+          retries: { type: 'integer', default: 3 },
+        },
+      },
+      { defaultNonNullable: false },
+    );
+
+    expect(code).toContain('retries: z.int().optional()');
+    expect(code).not.toContain('retries: z.int().default(3)');
+  });
 });

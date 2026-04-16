@@ -5,6 +5,7 @@
  * Usage:
  *   openapi-to-zod [inputPath] [outputPath] [--use-date-codecs] [--alphabetical]
  *                  [--no-strict] [--no-strict-additional-properties]
+ *                  [--no-default-non-nullable]
  *                  [--override pointer=expr ...]
  */
 
@@ -44,6 +45,11 @@ OPTIONS
                                    Do not append .strict() to objects that
                                    declare additionalProperties: false. Useful
                                    when the API may return undocumented fields.
+  --default-non-nullable           (Default) For non-required object properties
+                                   with default values, emit .default(value)
+                                   instead of .optional().
+  --no-default-non-nullable        Disable default-value promotion and emit
+                                   .optional() for non-required properties.
   --override pointer=expr          Replace the auto-generated Zod expression at
                                    the given JSON Pointer with a custom
                                    expression. Can be specified multiple times.
@@ -71,6 +77,7 @@ EXAMPLES
   openapi-to-zod api.json out.ts --override "#/components/schemas/Date=z.coerce.date()" \\
                                  --override "#/paths/~1pets/get/queryParams=petsQuerySchema"
   openapi-to-zod api.json out.ts --alphabetical
+  openapi-to-zod api.json out.ts --no-default-non-nullable
   openapi-to-zod api.json out.ts --no-strict --no-strict-additional-properties
 `.trimStart(),
   );
@@ -84,6 +91,7 @@ const alphabetical = args.includes('--alphabetical');
 const strict = !args.includes('--no-strict');
 const strictAdditionalProperties = !args.includes('--no-strict-additional-properties');
 const jsonSchemaMode = args.includes('--json-schema');
+const defaultNonNullable = !args.includes('--no-default-non-nullable');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -123,6 +131,7 @@ const result = jsonSchemaMode
       useDateCodecs,
       alphabetical,
       strictAdditionalProperties,
+      defaultNonNullable,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateJsonSchemaZodSourceOptions)
   : await generateZodSourceFromOpenApi(inputObject, {
@@ -130,6 +139,7 @@ const result = jsonSchemaMode
       useDateCodecs,
       alphabetical,
       strictAdditionalProperties,
+      defaultNonNullable,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateZodSourceOptions);
 

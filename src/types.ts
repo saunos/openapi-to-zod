@@ -111,6 +111,12 @@ export type GenerateZodSourceOptions = {
    * preserved).
    */
   alphabetical?: boolean;
+  /**
+   * When `true`, non-required object properties that define a JSON Schema
+   * `default` are emitted as `.default(value)` instead of `.optional()`.
+   * Defaults to `true`.
+   */
+  defaultNonNullable?: boolean;
 };
 
 /**
@@ -174,6 +180,12 @@ export type GenerateJsonSchemaZodSourceOptions = {
    * Defaults to `false`.
    */
   alphabetical?: boolean;
+  /**
+   * When `true`, non-required object properties that define a JSON Schema
+   * `default` are emitted as `.default(value)` instead of `.optional()`.
+   * Defaults to `true`.
+   */
+  defaultNonNullable?: boolean;
 };
 
 /** The result returned by {@link generateZodSourceFromJsonSchema}. */
