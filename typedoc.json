@@ -19,7 +19,5 @@
     "protected": false,
     "private": false,
     "@internal": false
-  },
-  "plugin": ["typedoc-material-theme"],
-  "themeColor": "#cb9820"
+  }
 }

@@ -58,6 +58,7 @@ export class SchemaToZodConverter {
     private readonly strictAdditionalProperties: boolean = true,
     private readonly alphabetical: boolean = false,
     private readonly defaultNonNullable: boolean = true,
+    private readonly useZodMini: boolean = false,
   ) {}
 
   /** Returns the set of date codec keys that were actually emitted during conversion. */
@@ -211,51 +212,91 @@ export class SchemaToZodConverter {
         } else {
           expr = 'z.string()';
           // min/max/regex only apply to plain z.string(), not format schemas
-          if (typeof schema.minLength === 'number') {
-            expr += `.min(${schema.minLength})`;
-          }
-          if (typeof schema.maxLength === 'number') {
-            expr += `.max(${schema.maxLength})`;
-          }
-          if (typeof schema.pattern === 'string') {
-            expr += `.regex(new RegExp(${JSON.stringify(schema.pattern)}))`;
+          if (this.useZodMini) {
+            const checks: string[] = [];
+            if (typeof schema.minLength === 'number') {
+              checks.push(`z.minLength(${schema.minLength})`);
+            }
+            if (typeof schema.maxLength === 'number') {
+              checks.push(`z.maxLength(${schema.maxLength})`);
+            }
+            if (typeof schema.pattern === 'string') {
+              checks.push(`z.regex(new RegExp(${JSON.stringify(schema.pattern)}))`);
+            }
+            if (checks.length > 0) {
+              expr += `.check(${checks.join(', ')})`;
+            }
+          } else {
+            if (typeof schema.minLength === 'number') {
+              expr += `.min(${schema.minLength})`;
+            }
+            if (typeof schema.maxLength === 'number') {
+              expr += `.max(${schema.maxLength})`;
+            }
+            if (typeof schema.pattern === 'string') {
+              expr += `.regex(new RegExp(${JSON.stringify(schema.pattern)}))`;
+            }
           }
         }
         break;
       }
       case 'number': {
         expr = 'z.number()';
-        if (typeof schema.minimum === 'number') {
-          expr += `.min(${schema.minimum})`;
-        }
-        if (typeof schema.maximum === 'number') {
-          expr += `.max(${schema.maximum})`;
-        }
-        if (typeof schema.exclusiveMinimum === 'number') {
-          expr += `.gt(${schema.exclusiveMinimum})`;
-        }
-        if (typeof schema.exclusiveMaximum === 'number') {
-          expr += `.lt(${schema.exclusiveMaximum})`;
-        }
-        if (typeof schema.multipleOf === 'number') {
-          expr += `.multipleOf(${schema.multipleOf})`;
+        if (this.useZodMini) {
+          const checks: string[] = [];
+          if (typeof schema.minimum === 'number') checks.push(`z.gte(${schema.minimum})`);
+          if (typeof schema.maximum === 'number') checks.push(`z.lte(${schema.maximum})`);
+          if (typeof schema.exclusiveMinimum === 'number')
+            checks.push(`z.gt(${schema.exclusiveMinimum})`);
+          if (typeof schema.exclusiveMaximum === 'number')
+            checks.push(`z.lt(${schema.exclusiveMaximum})`);
+          if (typeof schema.multipleOf === 'number')
+            checks.push(`z.multipleOf(${schema.multipleOf})`);
+          if (checks.length > 0) expr += `.check(${checks.join(', ')})`;
+        } else {
+          if (typeof schema.minimum === 'number') {
+            expr += `.min(${schema.minimum})`;
+          }
+          if (typeof schema.maximum === 'number') {
+            expr += `.max(${schema.maximum})`;
+          }
+          if (typeof schema.exclusiveMinimum === 'number') {
+            expr += `.gt(${schema.exclusiveMinimum})`;
+          }
+          if (typeof schema.exclusiveMaximum === 'number') {
+            expr += `.lt(${schema.exclusiveMaximum})`;
+          }
+          if (typeof schema.multipleOf === 'number') {
+            expr += `.multipleOf(${schema.multipleOf})`;
+          }
         }
         break;
       }
       case 'integer': {
         // Zod 4: z.int() replaces z.number().int()
         expr = 'z.int()';
-        if (typeof schema.minimum === 'number') {
-          expr += `.min(${schema.minimum})`;
-        }
-        if (typeof schema.maximum === 'number') {
-          expr += `.max(${schema.maximum})`;
-        }
-        if (typeof schema.exclusiveMinimum === 'number') {
-          expr += `.gt(${schema.exclusiveMinimum})`;
-        }
-        if (typeof schema.exclusiveMaximum === 'number') {
-          expr += `.lt(${schema.exclusiveMaximum})`;
+        if (this.useZodMini) {
+          const checks: string[] = [];
+          if (typeof schema.minimum === 'number') checks.push(`z.gte(${schema.minimum})`);
+          if (typeof schema.maximum === 'number') checks.push(`z.lte(${schema.maximum})`);
+          if (typeof schema.exclusiveMinimum === 'number')
+            checks.push(`z.gt(${schema.exclusiveMinimum})`);
+          if (typeof schema.exclusiveMaximum === 'number')
+            checks.push(`z.lt(${schema.exclusiveMaximum})`);
+          if (checks.length > 0) expr += `.check(${checks.join(', ')})`;
+        } else {
+          if (typeof schema.minimum === 'number') {
+            expr += `.min(${schema.minimum})`;
+          }
+          if (typeof schema.maximum === 'number') {
+            expr += `.max(${schema.maximum})`;
+          }
+          if (typeof schema.exclusiveMinimum === 'number') {
+            expr += `.gt(${schema.exclusiveMinimum})`;
+          }
+          if (typeof schema.exclusiveMaximum === 'number') {
+            expr += `.lt(${schema.exclusiveMaximum})`;
+          }
         }
         break;
       }
@@ -270,11 +311,18 @@ export class SchemaToZodConverter {
       case 'array': {
         const itemSchema = schema.items ?? {};
         expr = `z.array(${this.convert(itemSchema, `${pointer}/items`)})`;
-        if (typeof schema.minItems === 'number') {
-          expr += `.min(${schema.minItems})`;
-        }
-        if (typeof schema.maxItems === 'number') {
-          expr += `.max(${schema.maxItems})`;
+        if (this.useZodMini) {
+          const checks: string[] = [];
+          if (typeof schema.minItems === 'number') checks.push(`z.minLength(${schema.minItems})`);
+          if (typeof schema.maxItems === 'number') checks.push(`z.maxLength(${schema.maxItems})`);
+          if (checks.length > 0) expr += `.check(${checks.join(', ')})`;
+        } else {
+          if (typeof schema.minItems === 'number') {
+            expr += `.min(${schema.minItems})`;
+          }
+          if (typeof schema.maxItems === 'number') {
+            expr += `.max(${schema.maxItems})`;
+          }
         }
         break;
       }
@@ -297,9 +345,11 @@ export class SchemaToZodConverter {
               isObject(propSchema) &&
               Object.prototype.hasOwnProperty.call(propSchema, 'default')
             ) {
-              finalExpr = `${childExpr}.default(${toLiteral(propSchema.default)})`;
+              finalExpr = this.useZodMini
+                ? `z._default(${childExpr}, ${toLiteral(propSchema.default)})`
+                : `${childExpr}.default(${toLiteral(propSchema.default)})`;
             } else {
-              finalExpr = `${childExpr}.optional()`;
+              finalExpr = this.useZodMini ? `z.optional(${childExpr})` : `${childExpr}.optional()`;
             }
           }
           // Use getter syntax for properties that contain $refs so that
@@ -314,18 +364,32 @@ export class SchemaToZodConverter {
         });
 
         const isLoose = schema.additionalProperties === true;
-        const objectFn = isLoose ? 'z.looseObject' : 'z.object';
+        const isStrict =
+          !isLoose && schema.additionalProperties === false && this.strictAdditionalProperties;
+        const hasCatchall = isObject(schema.additionalProperties);
 
-        if (entries.length === 0) {
-          expr = `${objectFn}({})`;
+        if (this.useZodMini && isStrict) {
+          // z.strictObject(shape) replaces z.object(shape).strict()
+          const objectFn = 'z.strictObject';
+          expr =
+            entries.length === 0 ? `${objectFn}({})` : `${objectFn}({\n${entries.join('\n')}\n})`;
         } else {
-          expr = `${objectFn}({\n${entries.join('\n')}\n})`;
-        }
-
-        if (!isLoose && schema.additionalProperties === false && this.strictAdditionalProperties) {
-          expr += '.strict()';
-        } else if (isObject(schema.additionalProperties)) {
-          expr += `.catchall(${this.convert(schema.additionalProperties, `${pointer}/additionalProperties`)})`;
+          const objectFn = isLoose ? 'z.looseObject' : 'z.object';
+          expr =
+            entries.length === 0 ? `${objectFn}({})` : `${objectFn}({\n${entries.join('\n')}\n})`;
+          if (!this.useZodMini && isStrict) {
+            expr += '.strict()';
+          } else if (hasCatchall) {
+            const catchallExpr = this.convert(
+              schema.additionalProperties,
+              `${pointer}/additionalProperties`,
+            );
+            if (this.useZodMini) {
+              expr = `z.catchall(${expr}, ${catchallExpr})`;
+            } else {
+              expr += `.catchall(${catchallExpr})`;
+            }
+          }
         }
         break;
       }
@@ -336,7 +400,11 @@ export class SchemaToZodConverter {
     }
 
     if (schema.nullable === true) {
-      expr += '.nullable()';
+      if (this.useZodMini) {
+        expr = `z.nullable(${expr})`;
+      } else {
+        expr += '.nullable()';
+      }
     }
 
     return expr;

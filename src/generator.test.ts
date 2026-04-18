@@ -37,7 +37,7 @@ describe('generateZodSourceFromOpenApi - basics', () => {
   it('generates header and zod import', async () => {
     const { code } = await generate(makeSpec());
     expect(code).toContain('// Auto-generated');
-    expect(code).toContain("import { z } from 'zod'");
+    expect(code).toContain("import * as z from 'zod'");
   });
 
   it('generates component schema variables', async () => {
@@ -1067,5 +1067,74 @@ describe('generateZodSourceFromOpenApi – path-level params', () => {
     // Should NOT contain z.string() for id (only for response)
     // The path param should use integer
     expect(code).toContain('id: z.int()');
+  });
+});
+// ---------------------------------------------------------------------------
+// Zod Mini mode
+// ---------------------------------------------------------------------------
+describe('generateZodSourceFromOpenApi - mini mode', () => {
+  const simpleSpec = {
+    openapi: '3.1.0' as const,
+    info: { title: 'Test', version: '1.0.0' },
+    paths: {
+      '/items': {
+        get: {
+          operationId: 'listItems',
+          parameters: [
+            {
+              name: 'limit',
+              in: 'query' as const,
+              schema: { type: 'integer', minimum: 1, maximum: 100 },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'ok',
+              content: { 'application/json': { schema: { type: 'string', minLength: 1 } } },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Item: {
+          type: 'object' as const,
+          properties: {
+            id: { type: 'integer' as const },
+            name: { type: 'string' as const, minLength: 1 },
+          },
+          required: ['id'],
+        },
+      },
+    },
+  };
+
+  it('emits zod/mini import', async () => {
+    const { code } = await generateZodSourceFromOpenApi(simpleSpec, { useZodMini: true });
+    expect(code).toContain("import * as z from 'zod/mini'");
+    expect(code).not.toContain("import * as z from 'zod'");
+  });
+
+  it('emits .check() for integer constraints', async () => {
+    const { code } = await generateZodSourceFromOpenApi(simpleSpec, { useZodMini: true });
+    expect(code).toContain('z.int().check(z.gte(1), z.lte(100))');
+  });
+
+  it('emits .check() for string constraints', async () => {
+    const { code } = await generateZodSourceFromOpenApi(simpleSpec, { useZodMini: true });
+    expect(code).toContain('z.string().check(z.minLength(1))');
+  });
+
+  it('emits z.optional() for optional properties', async () => {
+    const { code } = await generateZodSourceFromOpenApi(simpleSpec, { useZodMini: true });
+    expect(code).toContain('z.optional(');
+    expect(code).not.toMatch(/\)\.optional\(\)/);
+  });
+
+  it('regular mode is unchanged', async () => {
+    const { code } = await generateZodSourceFromOpenApi(simpleSpec);
+    expect(code).toContain("import * as z from 'zod'");
+    expect(code).not.toContain('zod/mini');
   });
 });
