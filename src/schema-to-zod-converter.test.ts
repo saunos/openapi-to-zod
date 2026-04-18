@@ -1038,3 +1038,158 @@ describe('SchemaToZodConverter - alphabetical', () => {
     expect(result).toBe('z.union([z.literal(1), z.literal(2), z.literal(3)])');
   });
 });
+// ---------------------------------------------------------------------------
+// Zod Mini mode
+// ---------------------------------------------------------------------------
+function createMiniConverter(
+  opts: {
+    alphabetical?: boolean;
+    defaultNonNullable?: boolean;
+    componentSchemaVarNames?: Record<string, string>;
+    doc?: OpenApiObject;
+  } = {},
+) {
+  const diagnostics = new DiagnosticCollector(false);
+  const converter = new SchemaToZodConverter(
+    opts.doc ?? emptyDoc,
+    opts.componentSchemaVarNames ?? {},
+    diagnostics,
+    false,
+    {},
+    undefined,
+    true,
+    opts.alphabetical ?? false,
+    opts.defaultNonNullable ?? true,
+    true, // useZodMini
+  );
+  return { converter, diagnostics };
+}
+
+describe('SchemaToZodConverter - mini mode', () => {
+  it('string with minLength and maxLength uses .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(converter.convert({ type: 'string', minLength: 2, maxLength: 10 }, '#')).toBe(
+      'z.string().check(z.minLength(2), z.maxLength(10))',
+    );
+  });
+
+  it('string with regex uses .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'string', minLength: 2, maxLength: 10, pattern: '^[a-z]+$' }, '#'),
+    ).toBe('z.string().check(z.minLength(2), z.maxLength(10), z.regex(new RegExp("^[a-z]+$")))');
+  });
+
+  it('string without constraints emits plain z.string()', () => {
+    const { converter } = createMiniConverter();
+    expect(converter.convert({ type: 'string' }, '#')).toBe('z.string()');
+  });
+
+  it('number with min/max/multipleOf uses .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'number', minimum: 0, maximum: 100, multipleOf: 5 }, '#'),
+    ).toBe('z.number().check(z.gte(0), z.lte(100), z.multipleOf(5))');
+  });
+
+  it('number with exclusive bounds uses z.gt/z.lt in .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'number', exclusiveMinimum: 1, exclusiveMaximum: 100 }, '#'),
+    ).toBe('z.number().check(z.gt(1), z.lt(100))');
+  });
+
+  it('integer with exclusive bounds uses .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'integer', exclusiveMinimum: 1, exclusiveMaximum: 10 }, '#'),
+    ).toBe('z.int().check(z.gt(1), z.lt(10))');
+  });
+
+  it('array with minItems/maxItems uses .check()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert(
+        { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 5 },
+        '#',
+      ),
+    ).toBe('z.array(z.string()).check(z.minLength(1), z.maxLength(5))');
+  });
+
+  it('optional property wraps with z.optional()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'object', properties: { name: { type: 'string' } } }, '#'),
+    ).toBe('z.object({\n  name: z.optional(z.string()),\n})');
+  });
+
+  it('nullable type array uses z.union', () => {
+    const { converter } = createMiniConverter();
+    // OpenAPI 3.1 uses type arrays; nullable:true (3.0) is stripped by the schema parser
+    expect(converter.convert({ type: ['string', 'null'] }, '#')).toBe(
+      'z.union([z.string(), z.null()])',
+    );
+  });
+
+  it('optional nullable property uses z.optional(z.union(...))', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert({ type: 'object', properties: { x: { type: ['string', 'null'] } } }, '#'),
+    ).toBe('z.object({\n  x: z.optional(z.union([z.string(), z.null()])),\n})');
+  });
+
+  it('default value uses z._default() wrapping', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert(
+        { type: 'object', properties: { count: { type: 'number', default: 0 } } },
+        '#',
+      ),
+    ).toBe('z.object({\n  count: z._default(z.number(), 0),\n})');
+  });
+
+  it('strict object uses z.strictObject()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert(
+        {
+          type: 'object',
+          properties: { x: { type: 'string' } },
+          required: ['x'],
+          additionalProperties: false,
+        },
+        '#',
+      ),
+    ).toBe('z.strictObject({\n  x: z.string(),\n})');
+  });
+
+  it('catchall uses z.catchall() wrapping', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert(
+        {
+          type: 'object',
+          properties: { x: { type: 'string' } },
+          required: ['x'],
+          additionalProperties: { type: 'number' },
+        },
+        '#',
+      ),
+    ).toBe('z.catchall(z.object({\n  x: z.string(),\n}), z.number())');
+  });
+
+  it('loose object still uses z.looseObject()', () => {
+    const { converter } = createMiniConverter();
+    expect(
+      converter.convert(
+        {
+          type: 'object',
+          properties: { x: { type: 'string' } },
+          required: ['x'],
+          additionalProperties: true,
+        },
+        '#',
+      ),
+    ).toBe('z.looseObject({\n  x: z.string(),\n})');
+  });
+});

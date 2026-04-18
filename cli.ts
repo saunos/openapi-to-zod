@@ -50,6 +50,10 @@ OPTIONS
                                    instead of .optional().
   --no-default-non-nullable        Disable default-value promotion and emit
                                    .optional() for non-required properties.
+  --mini                           Emit zod/mini-compatible code: import from
+                                   "zod/mini" and use the functional API
+                                   (.check(), z.optional(), z.nullable(),
+                                   z._default()) instead of method chains.
   --override pointer=expr          Replace the auto-generated Zod expression at
                                    the given JSON Pointer with a custom
                                    expression. Can be specified multiple times.
@@ -92,6 +96,7 @@ const strict = !args.includes('--no-strict');
 const strictAdditionalProperties = !args.includes('--no-strict-additional-properties');
 const jsonSchemaMode = args.includes('--json-schema');
 const defaultNonNullable = !args.includes('--no-default-non-nullable');
+const useZodMini = args.includes('--mini');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -132,6 +137,7 @@ const result = jsonSchemaMode
       alphabetical,
       strictAdditionalProperties,
       defaultNonNullable,
+      useZodMini,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateJsonSchemaZodSourceOptions)
   : await generateZodSourceFromOpenApi(inputObject, {
@@ -140,6 +146,7 @@ const result = jsonSchemaMode
       alphabetical,
       strictAdditionalProperties,
       defaultNonNullable,
+      useZodMini,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateZodSourceOptions);
 

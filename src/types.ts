@@ -117,6 +117,13 @@ export type GenerateZodSourceOptions = {
    * Defaults to `true`.
    */
   defaultNonNullable?: boolean;
+  /**
+   * When `true`, the generated code imports from `"zod/mini"` and uses the
+   * tree-shakable functional API (`.check()`, `z.optional()`, `z.nullable()`,
+   * etc.) instead of the standard Zod method chains.
+   * Defaults to `false`.
+   */
+  useZodMini?: boolean;
 };
 
 /**
@@ -186,6 +193,13 @@ export type GenerateJsonSchemaZodSourceOptions = {
    * Defaults to `true`.
    */
   defaultNonNullable?: boolean;
+  /**
+   * When `true`, the generated code imports from `"zod/mini"` and uses the
+   * tree-shakable functional API (`.check()`, `z.optional()`, `z.nullable()`,
+   * etc.) instead of the standard Zod method chains.
+   * Defaults to `false`.
+   */
+  useZodMini?: boolean;
 };
 
 /** The result returned by {@link generateZodSourceFromJsonSchema}. */

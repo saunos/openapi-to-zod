@@ -1,6 +1,6 @@
-# json-schema-zod-tools
+# @saunos/openapi-to-zod
 
-Generate TypeScript source that exports Zod 4 schemas from an OpenAPI JSON object.
+Generate TypeScript source that exports Zod 4 schemas from an OpenAPI 3.x document or a standalone JSON Schema.
 
 ## Install
 
@@ -15,7 +15,7 @@ bun add @saunos/openapi-to-zod
 Run directly with `npx` — no install needed:
 
 ```bash
-npx openapi-to-zod https://example.com/openapi.json example.ts
+npx openapi-to-zod https://example.com/openapi.json schemas.ts
 ```
 
 Or from a local file:
@@ -24,20 +24,24 @@ Or from a local file:
 npx openapi-to-zod ./openapi.json ./generated/schemas.ts
 ```
 
-With options:
+Run `npx openapi-to-zod --help` for the full option reference.
 
-```bash
-# Coerce primitive types (z.coerce.*)
-npx openapi-to-zod ./openapi.json ./schemas.ts --coerce
+### CLI options
 
-# Override a specific schema with a custom Zod expression
-npx openapi-to-zod ./openapi.json ./schemas.ts \
-  --override "#/components/schemas/Date=z.coerce.date()"
-```
-
-Run `npx openapi-to-zod --help` for the full reference.
+| Flag                                | Description                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| `--mini`                            | Emit `zod/mini`-compatible code (see [Zod Mini](#zod-mini))                    |
+| `--json-schema`                     | Treat input as a standalone JSON Schema document (with `$defs`)                |
+| `--use-date-codecs`                 | Emit `z.codec(...)` for `date` / `date-time` formats, converting to `Date`     |
+| `--alphabetical`                    | Sort object property keys and enum values alphabetically                       |
+| `--no-strict`                       | Collect all error-level diagnostics instead of throwing on the first           |
+| `--no-strict-additional-properties` | Don't append `.strict()` for `additionalProperties: false`                     |
+| `--no-default-non-nullable`         | Emit `.optional()` for non-required properties even when they have a `default` |
+| `--override pointer=expr`           | Replace the auto-generated expression at a JSON Pointer (repeatable)           |
 
 ## Library API
+
+### `generateZodSourceFromOpenApi`
 
 ```ts
 import { generateZodSourceFromOpenApi } from '@saunos/openapi-to-zod';
@@ -52,16 +56,26 @@ const { code, diagnostics } = await generateZodSourceFromOpenApi(openApiObject, 
 await Bun.write('./schemas.ts', code);
 ```
 
-`strict: true` fails fast on the first extraction/conversion error with pointer details.
+### `generateZodSourceFromJsonSchema`
 
-### Convert a single JSON Schema
+For standalone JSON Schema documents that use `$defs` for named sub-schemas:
 
-For cases where you have a standalone JSON Schema (not a full OpenAPI document):
+```ts
+import { generateZodSourceFromJsonSchema } from '@saunos/openapi-to-zod';
+import schema from './my-schema.json';
+
+const { code, diagnostics } = generateZodSourceFromJsonSchema(schema);
+await Bun.write('./schemas.ts', code);
+```
+
+### `convertJsonSchemaToZod`
+
+For converting a single JSON Schema node to a Zod expression string (no full document, no `$ref` resolution):
 
 ```ts
 import { convertJsonSchemaToZod } from '@saunos/openapi-to-zod';
 
-const { expression, diagnostics } = convertJsonSchemaToZod({
+const { expression } = convertJsonSchemaToZod({
   type: 'object',
   required: ['id', 'name'],
   properties: {
@@ -74,165 +88,39 @@ const { expression, diagnostics } = convertJsonSchemaToZod({
 
 console.log(expression);
 // z.object({
-//   age: z.int().min(0).optional(),
 //   id: z.uuid(),
 //   name: z.string(),
+//   age: z.int().min(0).optional(),
 //   tags: z.array(z.string()).optional(),
 // })
 ```
 
 > **Note:** `$ref` pointers to `#/components/schemas/*` are not resolved by this function — use `generateZodSourceFromOpenApi` for schemas with cross-references.
 
-## Example
+## Zod Mini
 
-Given [`examples/bookstore.openapi.json`](./examples/bookstore.openapi.json):
+Pass `useZodMini: true` (or `--mini` on the CLI) to emit tree-shakable [`zod/mini`](https://zod.dev/packages/mini)-compatible code. The functional API is used instead of method chains:
 
-```json
-{
-  "openapi": "3.1.0",
-  "info": { "title": "Bookstore API", "version": "1.0.0" },
-  "paths": {
-    "/books": {
-      "get": {
-        "parameters": [
-          {
-            "name": "genre",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": ["fiction", "non-fiction", "science", "history"]
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "schema": { "type": "integer", "minimum": 1 }
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 100 }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/BookPage" }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/BookCreate" }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Book" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/books/{id}": {
-      "get": {
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Book" }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "Genre": {
-        "type": "string",
-        "enum": ["fiction", "non-fiction", "science", "history"]
-      },
-      "Book": {
-        "type": "object",
-        "required": ["id", "title", "author", "genre", "published_at"],
-        "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "title": { "type": "string" },
-          "author": { "type": "string" },
-          "genre": { "$ref": "#/components/schemas/Genre" },
-          "published_at": { "type": "string", "format": "date-time" },
-          "rating": { "type": "number", "minimum": 0, "maximum": 5 }
-        }
-      },
-      "BookCreate": {
-        "type": "object",
-        "required": ["title", "author", "genre"],
-        "properties": {
-          "title": { "type": "string" },
-          "author": { "type": "string" },
-          "genre": { "$ref": "#/components/schemas/Genre" },
-          "published_at": {
-            "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
-          }
-        }
-      },
-      "BookPage": {
-        "type": "object",
-        "required": ["items", "total", "page", "size"],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/Book" }
-          },
-          "total": { "type": "integer", "minimum": 0 },
-          "page": { "type": "integer", "minimum": 1 },
-          "size": { "type": "integer", "minimum": 1 }
-        }
-      },
-      "Error": {
-        "type": "object",
-        "required": ["code", "message"],
-        "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" }
-        }
-      }
-    }
-  }
-}
+| Regular Zod                   | Zod Mini                                            |
+| ----------------------------- | --------------------------------------------------- |
+| `import { z } from 'zod'`     | `import * as z from 'zod/mini'`                     |
+| `z.string().min(1).max(50)`   | `z.string().check(z.minLength(1), z.maxLength(50))` |
+| `z.number().min(0).max(5)`    | `z.number().check(z.gte(0), z.lte(5))`              |
+| `z.int().min(1)`              | `z.int().check(z.gte(1))`                           |
+| `z.array(x).min(1)`           | `z.array(x).check(z.minLength(1))`                  |
+| `schema.optional()`           | `z.optional(schema)`                                |
+| `schema.nullable()`           | `z.nullable(schema)`                                |
+| `schema.default(v)`           | `z._default(schema, v)`                             |
+| `z.object(shape).strict()`    | `z.strictObject(shape)`                             |
+| `z.object(shape).catchall(s)` | `z.catchall(z.object(shape), s)`                    |
+
+```ts
+const { code } = await generateZodSourceFromOpenApi(spec, { useZodMini: true });
 ```
 
-Running:
+## Example
+
+Given [`examples/bookstore.openapi.json`](./examples/bookstore.openapi.json), running:
 
 ```bash
 npx openapi-to-zod ./examples/bookstore.openapi.json ./examples/bookstore.generated.ts
@@ -241,80 +129,124 @@ npx openapi-to-zod ./examples/bookstore.openapi.json ./examples/bookstore.genera
 Produces [`examples/bookstore.generated.ts`](./examples/bookstore.generated.ts):
 
 ```ts
-// Auto-generated by json-schema-zod-tools.
+// Auto-generated by @saunos/openapi-to-zod.
 import { z } from 'zod';
 
-const BookSchema = z.object({
-  author: z.string(),
-  genre: z.lazy(() => GenreSchema),
-  id: z.uuid(),
-  published_at: z.iso.datetime(),
-  rating: z.number().min(0).max(5).optional(),
-  title: z.string(),
-});
-const BookCreateSchema = z.object({
-  author: z.string(),
-  genre: z.lazy(() => GenreSchema),
-  published_at: z.union([z.iso.datetime(), z.null()]).optional(),
-  title: z.string(),
-});
-const BookPageSchema = z.object({
-  items: z.array(z.lazy(() => BookSchema)),
-  page: z.int().min(1),
-  size: z.int().min(1),
-  total: z.int().min(0),
-});
 const ErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
 });
 const GenreSchema = z.enum(['fiction', 'non-fiction', 'science', 'history']);
+const BookSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  author: z.string(),
+  get genre() {
+    return GenreSchema;
+  },
+  published_at: z.iso.datetime(),
+  rating: z.number().min(0).max(5).optional(),
+});
+const BookCreateSchema = z.object({
+  title: z.string(),
+  author: z.string(),
+  get genre() {
+    return GenreSchema;
+  },
+  published_at: z.union([z.iso.datetime(), z.null()]).optional(),
+});
+const BookPageSchema = z.object({
+  get items() {
+    return z.array(BookSchema);
+  },
+  total: z.int().min(0),
+  page: z.int().min(1),
+  size: z.int().min(1),
+});
 
-export const schemas = {
-  paths: {
-    '/books': {
-      get: {
-        path: z.object({}),
-        query: z.object({
-          genre: z.enum(['fiction', 'non-fiction', 'science', 'history']),
-          page: z.int().min(1),
-          size: z.int().min(1).max(100),
-        }),
-        responses: {
-          '200': z.lazy(() => BookPageSchema),
-        },
-      },
-      post: {
-        path: z.object({}),
-        query: z.object({}),
-        requestBody: {
-          'application/json': z.lazy(() => BookCreateSchema),
-        },
-        responses: {
-          '201': z.lazy(() => BookSchema),
-        },
+export const paths = {
+  '/books': {
+    get: {
+      path: z.object({}),
+      query: z.object({
+        genre: z.enum(['fiction', 'non-fiction', 'science', 'history']),
+        page: z.int().min(1),
+        size: z.int().min(1).max(100),
+      }),
+      responses: {
+        '200': BookPageSchema,
       },
     },
-    '/books/{id}': {
-      get: {
-        path: z.object({
-          id: z.uuid(),
-        }),
-        query: z.object({}),
-        responses: {
-          '200': z.lazy(() => BookSchema),
-          '404': z.lazy(() => ErrorSchema),
-        },
+    post: {
+      path: z.object({}),
+      query: z.object({}),
+      requestBody: {
+        'application/json': BookCreateSchema,
+      },
+      responses: {
+        '201': BookSchema,
       },
     },
   },
-  components: {
-    schemas: {
-      Book: BookSchema,
-      BookCreate: BookCreateSchema,
-      BookPage: BookPageSchema,
-      Error: ErrorSchema,
-      Genre: GenreSchema,
+  '/books/{id}': {
+    get: {
+      path: z.object({
+        id: z.uuid(),
+      }),
+      query: z.object({}),
+      responses: {
+        '200': BookSchema,
+        '404': ErrorSchema,
+      },
+    },
+  },
+} as const;
+
+export const components = {
+  schemas: {
+    Book: BookSchema,
+    BookCreate: BookCreateSchema,
+    BookPage: BookPageSchema,
+    Error: ErrorSchema,
+    Genre: GenreSchema,
+  },
+} as const;
+```
+
+With `--mini`:
+
+```bash
+npx openapi-to-zod ./examples/bookstore.openapi.json ./examples/bookstore.generated.ts --mini
+```
+
+```ts
+// Auto-generated by @saunos/openapi-to-zod.
+import * as z from 'zod/mini';
+
+const ErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+});
+const GenreSchema = z.enum(['fiction', 'non-fiction', 'science', 'history']);
+const BookSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  author: z.string(),
+  get genre() {
+    return GenreSchema;
+  },
+  published_at: z.iso.datetime(),
+  rating: z.optional(z.number().check(z.gte(0), z.lte(5))),
+});
+// ...
+export const paths = {
+  '/books': {
+    get: {
+      query: z.object({
+        page: z.int().check(z.gte(1)),
+        size: z.int().check(z.gte(1), z.lte(100)),
+      }),
+      // ...
     },
   },
 } as const;
@@ -322,32 +254,65 @@ export const schemas = {
 
 ## Generated exports
 
-A single `schemas` constant is exported with the following shape:
+### OpenAPI mode (`generateZodSourceFromOpenApi`)
+
+Exports `paths` and `components`:
 
 ```ts
-export const schemas = {
-  paths: {
-    // keyed by path string, then HTTP method
-    '/resource/{id}': {
-      get: {
-        path: z.object({ ... }),      // path parameters
-        query: z.object({ ... }),     // query parameters
-        requestBody: {                // optional — only present when defined
-          'application/json': z.lazy(() => ...),
-        },
-        responses: {
-          '200': z.lazy(() => ...),
-        },
+export const paths = {
+  '/resource/{id}': {
+    get: {
+      path: z.object({ ... }),      // path parameters
+      query: z.object({ ... }),     // query parameters
+      requestBody: {                // optional — only present when defined
+        'application/json': ...,
+      },
+      responses: {
+        '200': ...,
       },
     },
   },
-  components: {
-    schemas: {
-      // keyed by component schema name
-      MySchema: MySchemaSchema,
-    },
+} as const;
+
+export const components = {
+  schemas: {
+    MyModel: MyModelSchema,
   },
 } as const;
+```
+
+### JSON Schema mode (`generateZodSourceFromJsonSchema`)
+
+Exports `schema` (the root) and `defs` (named `$defs`):
+
+```ts
+export const schema = z.object({ ... });
+export const defs = {
+  MyDef: MyDefSchema,
+} as const;
+```
+
+## Overrides
+
+Replace any auto-generated expression at a JSON Pointer with your own:
+
+```ts
+const { code } = await generateZodSourceFromOpenApi(spec, {
+  overrides: {
+    '#/components/schemas/Date': 'z.coerce.date()',
+    '#/components/schemas/User/properties/email': 'z.email().transform(v => v.toLowerCase())',
+    // Replace an entire group with a single expression
+    '#/paths/~1pets/get/queryParams': 'petsQuerySchema',
+  },
+});
+```
+
+Or via CLI:
+
+```bash
+npx openapi-to-zod api.json out.ts \
+  --override "#/components/schemas/Date=z.coerce.date()" \
+  --override "#/paths/~1pets/get/queryParams=petsQuerySchema"
 ```
 
 ## License
