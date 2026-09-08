@@ -1,6 +1,6 @@
 {
   "name": "@saunos/openapi-to-zod",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Generate Zod schemas from an OpenAPI spec",
   "license": "MIT",
   "bin": {
@@ -36,16 +36,16 @@
     "fmt": "oxfmt --check src"
   },
   "dependencies": {
-    "@scalar/openapi-types": "^0.6.0"
+    "@scalar/openapi-types": "^0.9.5"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "oxfmt": "^0.36.0",
-    "oxlint": "^1.51.0",
-    "typedoc": "^0.28.17",
-    "typedoc-plugin-markdown": "^4.10.0",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.13.0",
     "typescript": "^5",
-    "zod": "^4.3.6"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "typescript": "^5",
