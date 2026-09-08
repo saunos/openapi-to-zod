@@ -43,6 +43,10 @@ export class SchemaToZodConverter {
    * @param defaultNonNullable - When `true`, non-required object properties that define a JSON
    *   Schema `default` value are emitted as `.default(value)` instead of `.optional()`. Defaults
    *   to `true`.
+   * @param useZodMini - When `true`, emit `zod/mini`-compatible expressions. Defaults to `false`.
+   * @param openEndedEnums - When `true`, string enums are emitted as open-ended unions that
+   *   accept unknown values at runtime while keeping the known literals for editor
+   *   autocomplete. Defaults to `false`.
    */
   private readonly usedCodecs = new Set<'datetime' | 'date'>();
 
@@ -59,6 +63,7 @@ export class SchemaToZodConverter {
     private readonly alphabetical: boolean = false,
     private readonly defaultNonNullable: boolean = true,
     private readonly useZodMini: boolean = false,
+    private readonly openEndedEnums: boolean = false,
   ) {}
 
   /** Returns the set of date codec keys that were actually emitted during conversion. */
@@ -465,6 +470,10 @@ export class SchemaToZodConverter {
    * When all values are strings, `z.enum([...])` is used; otherwise
    * each value becomes a `z.literal(...)` wrapped in a union.
    *
+   * When `openEndedEnums` is enabled, string enums are additionally unioned
+   * with a `string & {}` branch so that unknown values pass validation while
+   * the known literals stay visible to editor autocomplete.
+   *
    * @param values - The enum values.
    * @param pointer - JSON Pointer for diagnostics.
    * @returns A Zod expression string.
@@ -490,7 +499,12 @@ export class SchemaToZodConverter {
         ? [...values].sort((a, b) => String(a).localeCompare(String(b)))
         : values;
       const literals = sorted.map((value) => JSON.stringify(value as string)).join(', ');
-      return `z.enum([${literals}])`;
+      const enumExpr = `z.enum([${literals}])`;
+      if (this.openEndedEnums) {
+        const typeName = this.useZodMini ? 'z.ZodMiniType' : 'z.ZodType';
+        return unionExpressions([enumExpr, `z.string() as unknown as ${typeName}<string & {}>`]);
+      }
+      return enumExpr;
     }
 
     const literalSchemas = this.alphabetical

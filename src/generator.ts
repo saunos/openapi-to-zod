@@ -268,6 +268,7 @@ function emitSource(
     options.alphabetical ?? false,
     options.defaultNonNullable ?? true,
     options.useZodMini ?? false,
+    options.openEndedEnums ?? false,
   );
 
   // Collect body lines first so we know which codecs were used before assembling the header

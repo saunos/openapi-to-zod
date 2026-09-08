@@ -257,6 +257,16 @@ describe('generateZodSourceFromJsonSchema - options', () => {
     expect(code.indexOf('a_first')).toBeLessThan(code.indexOf('z_last'));
   });
 
+  it('openEndedEnums emits open-ended string enum unions', () => {
+    const { code } = generate(
+      { type: 'object', properties: { status: { enum: ['pending', 'failed'] } } },
+      { openEndedEnums: true },
+    );
+    expect(code).toContain(
+      'z.union([z.enum(["pending", "failed"]), z.string() as unknown as z.ZodType<string & {}>])',
+    );
+  });
+
   it('useDateCodecs emits codec helpers', () => {
     const { code } = generate({ type: 'string', format: 'date-time' }, { useDateCodecs: true });
     expect(code).toContain('isoDatetimeToDate');

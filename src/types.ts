@@ -124,6 +124,20 @@ export type GenerateZodSourceOptions = {
    * Defaults to `false`.
    */
   useZodMini?: boolean;
+  /**
+   * When `true`, string `enum`s are emitted as open-ended unions that still
+   * accept unknown values at runtime while keeping the known literals for
+   * editor autocomplete:
+   *
+   * ```ts
+   * z.union([z.enum(["pending", "failed"]), z.string() as unknown as z.ZodType<string & {}>])
+   * // inferred type: "pending" | "failed" | (string & {})
+   * ```
+   *
+   * Useful for APIs that may add new enum members without a spec update.
+   * Non-string enums are unaffected. Defaults to `false`.
+   */
+  openEndedEnums?: boolean;
 };
 
 /**
@@ -200,6 +214,12 @@ export type GenerateJsonSchemaZodSourceOptions = {
    * Defaults to `false`.
    */
   useZodMini?: boolean;
+  /**
+   * When `true`, string `enum`s are emitted as open-ended unions that still
+   * accept unknown values at runtime while keeping the known literals for
+   * editor autocomplete. Non-string enums are unaffected. Defaults to `false`.
+   */
+  openEndedEnums?: boolean;
 };
 
 /** The result returned by {@link generateZodSourceFromJsonSchema}. */

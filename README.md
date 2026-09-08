@@ -34,6 +34,7 @@ Run `npx openapi-to-zod --help` for the full option reference.
 | `--json-schema`                     | Treat input as a standalone JSON Schema document (with `$defs`)                |
 | `--use-date-codecs`                 | Emit `z.codec(...)` for `date` / `date-time` formats, converting to `Date`     |
 | `--alphabetical`                    | Sort object property keys and enum values alphabetically                       |
+| `--open-ended-enums`                | Emit string enums as open-ended unions (see [Open-ended enums](#open-ended-enums)) |
 | `--no-strict`                       | Collect all error-level diagnostics instead of throwing on the first           |
 | `--no-strict-additional-properties` | Don't append `.strict()` for `additionalProperties: false`                     |
 | `--no-default-non-nullable`         | Emit `.optional()` for non-required properties even when they have a `default` |
@@ -96,6 +97,29 @@ console.log(expression);
 ```
 
 > **Note:** `$ref` pointers to `#/components/schemas/*` are not resolved by this function — use `generateZodSourceFromOpenApi` for schemas with cross-references.
+
+## Open-ended enums
+
+APIs often add new enum members before the spec catches up, which makes a closed `z.enum([...])` reject otherwise valid responses. Pass `openEndedEnums: true` (or `--open-ended-enums` on the CLI) to emit string enums as open-ended unions instead:
+
+```ts
+// Default
+const StatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed']);
+// type: 'pending' | 'running' | 'succeeded' | 'failed'
+
+// With openEndedEnums: true
+const StatusSchema = z.union([
+  z.enum(['pending', 'running', 'succeeded', 'failed']),
+  z.string() as unknown as z.ZodType<string & {}>,
+]);
+// type: 'pending' | 'running' | 'succeeded' | 'failed' | (string & {})
+```
+
+Any string passes validation, while the `string & {}` branch keeps the known members visible to editor autocomplete. Non-string enums (numbers, mixed values) are unaffected. In `zod/mini` mode the cast target is `z.ZodMiniType<string & {}>`.
+
+```ts
+const { code } = await generateZodSourceFromOpenApi(spec, { openEndedEnums: true });
+```
 
 ## Zod Mini
 

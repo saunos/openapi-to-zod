@@ -21,6 +21,7 @@ function createConverter(
     overrideCallback?: (ctx: SchemaOverrideContext) => string | undefined;
     componentSchemaVarNames?: Record<string, string>;
     doc?: OpenApiObject;
+    openEndedEnums?: boolean;
   } = {},
 ) {
   const diagnostics = new DiagnosticCollector(false);
@@ -34,6 +35,8 @@ function createConverter(
     true,
     opts.alphabetical ?? false,
     opts.defaultNonNullable ?? true,
+    false,
+    opts.openEndedEnums ?? false,
   );
   return { converter, diagnostics };
 }
@@ -1039,6 +1042,52 @@ describe('SchemaToZodConverter - alphabetical', () => {
   });
 });
 // ---------------------------------------------------------------------------
+// Open-ended enums
+// ---------------------------------------------------------------------------
+describe('SchemaToZodConverter - openEndedEnums', () => {
+  it('string enum becomes an open-ended union', () => {
+    const { converter } = createConverter({ openEndedEnums: true });
+    expect(converter.convert({ enum: ['pending', 'failed'] }, '#')).toBe(
+      'z.union([z.enum(["pending", "failed"]), z.string() as unknown as z.ZodType<string & {}>])',
+    );
+  });
+
+  it('single-value string enum becomes an open-ended union', () => {
+    const { converter } = createConverter({ openEndedEnums: true });
+    expect(converter.convert({ enum: ['only'] }, '#')).toBe(
+      'z.union([z.enum(["only"]), z.string() as unknown as z.ZodType<string & {}>])',
+    );
+  });
+
+  it('respects alphabetical sorting of the known literals', () => {
+    const { converter } = createConverter({ openEndedEnums: true, alphabetical: true });
+    expect(converter.convert({ enum: ['zebra', 'alpha'] }, '#')).toBe(
+      'z.union([z.enum(["alpha", "zebra"]), z.string() as unknown as z.ZodType<string & {}>])',
+    );
+  });
+
+  it('leaves non-string enums unchanged', () => {
+    const { converter } = createConverter({ openEndedEnums: true });
+    expect(converter.convert({ enum: [1, 2] }, '#')).toBe('z.union([z.literal(1), z.literal(2)])');
+    expect(converter.convert({ enum: ['a', 1] }, '#')).toBe(
+      'z.union([z.literal("a"), z.literal(1)])',
+    );
+  });
+
+  it('does not change output when disabled', () => {
+    const { converter } = createConverter();
+    expect(converter.convert({ enum: ['a', 'b'] }, '#')).toBe('z.enum(["a", "b"])');
+  });
+
+  it('uses z.ZodMiniType in mini mode', () => {
+    const { converter } = createMiniConverter({ openEndedEnums: true });
+    expect(converter.convert({ enum: ['a', 'b'] }, '#')).toBe(
+      'z.union([z.enum(["a", "b"]), z.string() as unknown as z.ZodMiniType<string & {}>])',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Zod Mini mode
 // ---------------------------------------------------------------------------
 function createMiniConverter(
@@ -1047,6 +1096,7 @@ function createMiniConverter(
     defaultNonNullable?: boolean;
     componentSchemaVarNames?: Record<string, string>;
     doc?: OpenApiObject;
+    openEndedEnums?: boolean;
   } = {},
 ) {
   const diagnostics = new DiagnosticCollector(false);
@@ -1061,6 +1111,7 @@ function createMiniConverter(
     opts.alphabetical ?? false,
     opts.defaultNonNullable ?? true,
     true, // useZodMini
+    opts.openEndedEnums ?? false,
   );
   return { converter, diagnostics };
 }

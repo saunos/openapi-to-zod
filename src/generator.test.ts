@@ -129,6 +129,32 @@ describe('generateZodSourceFromOpenApi - useDateCodecs', () => {
 });
 
 // ---------------------------------------------------------------------------
+// openEndedEnums option
+// ---------------------------------------------------------------------------
+describe('generateZodSourceFromOpenApi - openEndedEnums', () => {
+  const spec = makeSpec({
+    schemas: { Status: { type: 'string', enum: ['pending', 'failed'] } },
+  });
+
+  it('emits an open-ended union when enabled', async () => {
+    const { code } = await generate(spec, { openEndedEnums: true });
+    expect(code).toContain(
+      'const StatusSchema = z.union([z.enum(["pending", "failed"]), z.string() as unknown as z.ZodType<string & {}>])',
+    );
+  });
+
+  it('emits a plain z.enum when disabled', async () => {
+    const { code } = await generate(spec);
+    expect(code).toContain('const StatusSchema = z.enum(["pending", "failed"])');
+  });
+
+  it('uses z.ZodMiniType in mini mode', async () => {
+    const { code } = await generate(spec, { openEndedEnums: true, useZodMini: true });
+    expect(code).toContain('z.string() as unknown as z.ZodMiniType<string & {}>');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // defaultNonNullable option
 // ---------------------------------------------------------------------------
 describe('generateZodSourceFromOpenApi - defaultNonNullable', () => {
