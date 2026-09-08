@@ -1,10 +1,4 @@
-import type { OpenAPI } from '@scalar/openapi-types';
-import {
-  ParameterObjectSchema,
-  RequestBodyObjectSchema,
-  ResponseObjectSchema,
-} from '@scalar/openapi-types/schemas/3.1/processed';
-import type { z } from 'zod';
+import type { IJsonSchema, OpenAPI } from '@scalar/openapi-types';
 
 /** Severity level for a diagnostic message. */
 export type DiagnosticLevel = 'error' | 'warning';
@@ -244,12 +238,59 @@ export type OpenApiObject = OpenAPI.Document;
 /** Generic plain object used where a concrete shape is not yet known. */
 export type PlainObject = Record<string, unknown>;
 
-/** A validated OpenAPI Parameter Object. */
-export type ParameterObject = z.infer<typeof ParameterObjectSchema>;
+/**
+ * An OpenAPI Media Type Object, narrowed to the fields the generator reads.
+ * Additional spec fields (`example`, `encoding`, ...) are permitted.
+ */
+export type MediaTypeObject = {
+  /** The schema describing this media type's payload. */
+  schema?: IJsonSchema;
+} & PlainObject;
+
+/** A map from media type string (e.g. `"application/json"`) to its definition. */
+export type ContentObject = Record<string, MediaTypeObject | undefined>;
+
+/**
+ * A validated OpenAPI Parameter Object.
+ *
+ * Both `schema` and `content` are optional here — the spec allows exactly one,
+ * but the generator inspects whichever is present rather than branching on a
+ * discriminated union.
+ */
+export type ParameterObject = {
+  /** The parameter name. */
+  name: string;
+  /** The parameter location. */
+  in: 'query' | 'header' | 'path' | 'cookie';
+  /** Whether the parameter is mandatory. */
+  required?: boolean;
+  /** The schema defining the parameter's type. */
+  schema?: IJsonSchema;
+  /** Media-type map used instead of `schema` for complex parameters. */
+  content?: ContentObject;
+} & PlainObject;
+
 /** A validated OpenAPI Request Body Object. */
-export type RequestBodyObject = z.infer<typeof RequestBodyObjectSchema>;
+export type RequestBodyObject = {
+  /** Whether the request body is required. */
+  required?: boolean;
+  /** The request body payloads keyed by media type. */
+  content: ContentObject;
+} & PlainObject;
+
 /** A validated OpenAPI Response Object. */
-export type ResponseObject = z.infer<typeof ResponseObjectSchema>;
+export type ResponseObject = {
+  /** A description of the response. */
+  description: string;
+  /** The response payloads keyed by media type. */
+  content?: ContentObject;
+} & PlainObject;
+
+/** A validated OpenAPI Path Item Object. */
+export type PathItemObject = {
+  /** Parameters applicable to every operation under this path. */
+  parameters?: unknown[];
+} & PlainObject;
 
 /**
  * Intermediate representation of a single API operation extracted from an

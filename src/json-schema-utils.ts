@@ -17,10 +17,11 @@ import type {
 } from './types';
 import type { DiagnosticCollector } from './diagnostics-collector';
 import {
-  ParameterObjectSchema,
-  RequestBodyObjectSchema,
-  ResponseObjectSchema,
-} from '@scalar/openapi-types/schemas/3.1/processed';
+  formatIssues,
+  validateParameterObject,
+  validateRequestBodyObject,
+  validateResponseObject,
+} from './openapi-validators';
 
 /**
  * Infers the JSON Schema `type` keyword from structural cues when the
@@ -193,12 +194,12 @@ export function normalizeResponse(
   diagnostics: DiagnosticCollector,
 ): ResponseObject {
   const deref = dereference(input, pointer, openApiObject, diagnostics);
-  const result = ResponseObjectSchema.safeParse(deref);
+  const result = validateResponseObject(deref);
 
   if (!result.success) {
     diagnostics.push(
       'invalid-response',
-      `Response validation failed: ${result.error.issues.map((i) => i.message).join(', ')}`,
+      `Response validation failed: ${formatIssues(result.issues)}`,
       pointer,
     );
     return { description: '' };
@@ -257,12 +258,12 @@ export function normalizeParameter(
   diagnostics: DiagnosticCollector,
 ): ParameterObject {
   const deref = dereference(input, pointer, openApiObject, diagnostics);
-  const result = ParameterObjectSchema.safeParse(deref);
+  const result = validateParameterObject(deref);
 
   if (!result.success) {
     diagnostics.push(
       'invalid-parameter',
-      `Parameter validation failed: ${result.error.issues.map((i) => i.message).join(', ')}`,
+      `Parameter validation failed: ${formatIssues(result.issues)}`,
       pointer,
     );
     return { name: '', in: 'query' };
@@ -289,12 +290,12 @@ export function normalizeRequestBody(
   diagnostics: DiagnosticCollector,
 ): RequestBodyObject {
   const deref = dereference(input, pointer, openApiObject, diagnostics);
-  const result = RequestBodyObjectSchema.safeParse(deref);
+  const result = validateRequestBodyObject(deref);
 
   if (!result.success) {
     diagnostics.push(
       'invalid-request-body',
-      `Request body validation failed: ${result.error.issues.map((i) => i.message).join(', ')}`,
+      `Request body validation failed: ${formatIssues(result.issues)}`,
       pointer,
     );
     return { content: {} };

@@ -9,7 +9,7 @@
  */
 
 import type { IJsonSchema } from '@scalar/openapi-types';
-import { PathItemObjectSchema } from '@scalar/openapi-types/schemas/3.1/unprocessed';
+import { formatIssues, validatePathItemObject } from './openapi-validators';
 import type {
   GenerateZodSourceOptions,
   GenerateZodSourceResult,
@@ -92,11 +92,11 @@ function extractModel(
 
   for (const pathKey of sortKeys(rootPaths)) {
     const pathItemPointer = `#/paths/${escapeJsonPointer(pathKey)}`;
-    const pathItemResult = PathItemObjectSchema.safeParse(rootPaths[pathKey] ?? {});
+    const pathItemResult = validatePathItemObject(rootPaths[pathKey] ?? {});
     if (!pathItemResult.success) {
       diagnostics.push(
         'invalid-path-item',
-        `Path item validation failed: ${pathItemResult.error.issues.map((i) => i.message).join(', ')}`,
+        `Path item validation failed: ${formatIssues(pathItemResult.issues)}`,
         pathItemPointer,
       );
       continue;

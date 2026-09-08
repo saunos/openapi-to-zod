@@ -7,7 +7,7 @@
 
 import type { DiagnosticCollector } from './diagnostics-collector';
 import type { OpenApiObject, SchemaOverrideContext } from './types';
-import { SchemaObjectSchema } from '@scalar/openapi-types/schemas/3.1/unprocessed';
+import { formatIssues, validateSchemaObject } from './openapi-validators';
 
 import type { IJsonSchema } from '@scalar/openapi-types';
 import {
@@ -103,7 +103,7 @@ export class SchemaToZodConverter {
 
     // Give the callback a chance to replace or augment the expression
     if (this.overrideCallback) {
-      const parsed = SchemaObjectSchema.safeParse(schemaInput);
+      const parsed = validateSchemaObject(schemaInput);
       const schema: unknown = parsed.success ? parsed.data : schemaInput;
       const type = parsed.success
         ? typeof parsed.data.type === 'string'
@@ -131,12 +131,12 @@ export class SchemaToZodConverter {
    * intercept the result for the override callback.
    */
   private convertInternal(schemaInput: unknown, pointer: string): string {
-    const result = SchemaObjectSchema.safeParse(schemaInput);
+    const result = validateSchemaObject(schemaInput);
 
     if (!result.success) {
       this.diagnostics.push(
         'invalid-schema',
-        `Schema validation failed: ${result.error.issues.map((i) => i.message).join(', ')}`,
+        `Schema validation failed: ${formatIssues(result.issues)}`,
         pointer,
       );
       return 'z.unknown()';
