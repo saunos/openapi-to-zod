@@ -50,6 +50,10 @@ OPTIONS
                                    instead of .optional().
   --no-default-non-nullable        Disable default-value promotion and emit
                                    .optional() for non-required properties.
+  --open-ended-enums               Emit string enums as open-ended unions that
+                                   accept unknown values at runtime while
+                                   keeping the known literals for autocomplete:
+                                   "pending" | "failed" | (string & {}).
   --mini                           Emit zod/mini-compatible code: import from
                                    "zod/mini" and use the functional API
                                    (.check(), z.optional(), z.nullable(),
@@ -97,6 +101,7 @@ const strictAdditionalProperties = !args.includes('--no-strict-additional-proper
 const jsonSchemaMode = args.includes('--json-schema');
 const defaultNonNullable = !args.includes('--no-default-non-nullable');
 const useZodMini = args.includes('--mini');
+const openEndedEnums = args.includes('--open-ended-enums');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -138,6 +143,7 @@ const result = jsonSchemaMode
       strictAdditionalProperties,
       defaultNonNullable,
       useZodMini,
+      openEndedEnums,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateJsonSchemaZodSourceOptions)
   : await generateZodSourceFromOpenApi(inputObject, {
@@ -147,6 +153,7 @@ const result = jsonSchemaMode
       strictAdditionalProperties,
       defaultNonNullable,
       useZodMini,
+      openEndedEnums,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateZodSourceOptions);
 

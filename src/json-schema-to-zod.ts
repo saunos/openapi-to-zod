@@ -42,6 +42,12 @@ export type ConvertJsonSchemaToZodOptions = {
    * Defaults to `true`.
    */
   defaultNonNullable?: boolean;
+  /**
+   * When `true`, string `enum`s are emitted as open-ended unions that still
+   * accept unknown values at runtime while keeping the known literals for
+   * editor autocomplete. Non-string enums are unaffected. Defaults to `false`.
+   */
+  openEndedEnums?: boolean;
 };
 
 /** Result returned by {@link convertJsonSchemaToZod}. */
@@ -104,6 +110,8 @@ export function convertJsonSchemaToZod(
     options.strictAdditionalProperties ?? true,
     options.alphabetical ?? false,
     options.defaultNonNullable ?? true,
+    false,
+    options.openEndedEnums ?? false,
   );
 
   const expression = converter.convert(schema, '#');
