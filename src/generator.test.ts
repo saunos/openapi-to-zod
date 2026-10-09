@@ -155,6 +155,25 @@ describe('generateZodSourceFromOpenApi - openEndedEnums', () => {
 });
 
 // ---------------------------------------------------------------------------
+// trimStrings option
+// ---------------------------------------------------------------------------
+describe('generateZodSourceFromOpenApi - trimStrings', () => {
+  const spec = makeSpec({
+    schemas: { Name: { type: 'string', minLength: 1 } },
+  });
+
+  it('emits .trim() when enabled', async () => {
+    const { code } = await generate(spec, { trimStrings: true });
+    expect(code).toContain('const NameSchema = z.string().trim().min(1)');
+  });
+
+  it('does not trim by default', async () => {
+    const { code } = await generate(spec);
+    expect(code).toContain('const NameSchema = z.string().min(1)');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // defaultNonNullable option
 // ---------------------------------------------------------------------------
 describe('generateZodSourceFromOpenApi - defaultNonNullable', () => {

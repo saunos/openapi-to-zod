@@ -47,6 +47,8 @@ export class SchemaToZodConverter {
    * @param openEndedEnums - When `true`, string enums are emitted as open-ended unions that
    *   accept unknown values at runtime while keeping the known literals for editor
    *   autocomplete. Defaults to `false`.
+   * @param trimStrings - When `true`, plain `z.string()` schemas trim leading and trailing
+   *   whitespace before any length or pattern checks run. Defaults to `false`.
    */
   private readonly usedCodecs = new Set<'datetime' | 'date'>();
 
@@ -64,6 +66,7 @@ export class SchemaToZodConverter {
     private readonly defaultNonNullable: boolean = true,
     private readonly useZodMini: boolean = false,
     private readonly openEndedEnums: boolean = false,
+    private readonly trimStrings: boolean = false,
   ) {}
 
   /** Returns the set of date codec keys that were actually emitted during conversion. */
@@ -216,9 +219,15 @@ export class SchemaToZodConverter {
           expr = 'z.url()';
         } else {
           expr = 'z.string()';
-          // min/max/regex only apply to plain z.string(), not format schemas
+          // min/max/regex only apply to plain z.string(), not format schemas.
+          // Trim is emitted first: Zod runs checks in declaration order and
+          // trim is an "overwrite" check, so later length/pattern checks see
+          // the trimmed value.
           if (this.useZodMini) {
             const checks: string[] = [];
+            if (this.trimStrings) {
+              checks.push('z.trim()');
+            }
             if (typeof schema.minLength === 'number') {
               checks.push(`z.minLength(${schema.minLength})`);
             }
@@ -232,6 +241,9 @@ export class SchemaToZodConverter {
               expr += `.check(${checks.join(', ')})`;
             }
           } else {
+            if (this.trimStrings) {
+              expr += '.trim()';
+            }
             if (typeof schema.minLength === 'number') {
               expr += `.min(${schema.minLength})`;
             }

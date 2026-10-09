@@ -48,6 +48,13 @@ export type ConvertJsonSchemaToZodOptions = {
    * editor autocomplete. Non-string enums are unaffected. Defaults to `false`.
    */
   openEndedEnums?: boolean;
+  /**
+   * When `true`, plain string schemas (no `format`) trim leading and trailing
+   * whitespace before length and pattern checks: `z.string().trim().min(1)`.
+   * Format schemas such as `z.email()` or `z.uuid()` are unaffected.
+   * Defaults to `false`.
+   */
+  trimStrings?: boolean;
 };
 
 /** Result returned by {@link convertJsonSchemaToZod}. */
@@ -112,6 +119,7 @@ export function convertJsonSchemaToZod(
     options.defaultNonNullable ?? true,
     false,
     options.openEndedEnums ?? false,
+    options.trimStrings ?? false,
   );
 
   const expression = converter.convert(schema, '#');

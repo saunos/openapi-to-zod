@@ -22,6 +22,8 @@ function createConverter(
     componentSchemaVarNames?: Record<string, string>;
     doc?: OpenApiObject;
     openEndedEnums?: boolean;
+    trimStrings?: boolean;
+    useZodMini?: boolean;
   } = {},
 ) {
   const diagnostics = new DiagnosticCollector(false);
@@ -35,8 +37,9 @@ function createConverter(
     true,
     opts.alphabetical ?? false,
     opts.defaultNonNullable ?? true,
-    false,
+    opts.useZodMini ?? false,
     opts.openEndedEnums ?? false,
+    opts.trimStrings ?? false,
   );
   return { converter, diagnostics };
 }
@@ -149,6 +152,32 @@ describe('SchemaToZodConverter - string constraints', () => {
 // ---------------------------------------------------------------------------
 // Number constraints
 // ---------------------------------------------------------------------------
+describe('SchemaToZodConverter - trimStrings option', () => {
+  it('emits .trim() before length and pattern checks', () => {
+    const { converter } = createConverter({ trimStrings: true });
+    expect(
+      converter.convert({ type: 'string', minLength: 1, maxLength: 10, pattern: '^a' }, '#'),
+    ).toBe('z.string().trim().min(1).max(10).regex(new RegExp("^a"))');
+  });
+
+  it('emits z.trim() as the first check in mini mode', () => {
+    const { converter } = createConverter({ trimStrings: true, useZodMini: true });
+    expect(converter.convert({ type: 'string', minLength: 1 }, '#')).toBe(
+      'z.string().check(z.trim(), z.minLength(1))',
+    );
+  });
+
+  it('leaves format schemas untouched', () => {
+    const { converter } = createConverter({ trimStrings: true });
+    expect(converter.convert({ type: 'string', format: 'email' }, '#')).toBe('z.email()');
+  });
+
+  it('does not trim when disabled', () => {
+    const { converter } = createConverter();
+    expect(converter.convert({ type: 'string' }, '#')).toBe('z.string()');
+  });
+});
+
 describe('SchemaToZodConverter - number constraints', () => {
   it('applies minimum and maximum', () => {
     const { converter } = createConverter();
