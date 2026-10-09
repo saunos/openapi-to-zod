@@ -132,6 +132,13 @@ export type GenerateZodSourceOptions = {
    * Non-string enums are unaffected. Defaults to `false`.
    */
   openEndedEnums?: boolean;
+  /**
+   * When `true`, plain string schemas (no `format`) trim leading and trailing
+   * whitespace before length and pattern checks: `z.string().trim().min(1)`.
+   * Format schemas such as `z.email()` or `z.uuid()` are unaffected.
+   * Defaults to `false`.
+   */
+  trimStrings?: boolean;
 };
 
 /**
@@ -214,6 +221,13 @@ export type GenerateJsonSchemaZodSourceOptions = {
    * editor autocomplete. Non-string enums are unaffected. Defaults to `false`.
    */
   openEndedEnums?: boolean;
+  /**
+   * When `true`, plain string schemas (no `format`) trim leading and trailing
+   * whitespace before length and pattern checks: `z.string().trim().min(1)`.
+   * Format schemas such as `z.email()` or `z.uuid()` are unaffected.
+   * Defaults to `false`.
+   */
+  trimStrings?: boolean;
 };
 
 /** The result returned by {@link generateZodSourceFromJsonSchema}. */

@@ -54,6 +54,9 @@ OPTIONS
                                    accept unknown values at runtime while
                                    keeping the known literals for autocomplete:
                                    "pending" | "failed" | (string & {}).
+  --trim-strings                   Emit .trim() on plain string schemas (no
+                                   format), applied before min/max/pattern
+                                   checks.
   --mini                           Emit zod/mini-compatible code: import from
                                    "zod/mini" and use the functional API
                                    (.check(), z.optional(), z.nullable(),
@@ -102,6 +105,7 @@ const jsonSchemaMode = args.includes('--json-schema');
 const defaultNonNullable = !args.includes('--no-default-non-nullable');
 const useZodMini = args.includes('--mini');
 const openEndedEnums = args.includes('--open-ended-enums');
+const trimStrings = args.includes('--trim-strings');
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -144,6 +148,7 @@ const result = jsonSchemaMode
       defaultNonNullable,
       useZodMini,
       openEndedEnums,
+      trimStrings,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateJsonSchemaZodSourceOptions)
   : await generateZodSourceFromOpenApi(inputObject, {
@@ -154,6 +159,7 @@ const result = jsonSchemaMode
       defaultNonNullable,
       useZodMini,
       openEndedEnums,
+      trimStrings,
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateZodSourceOptions);
 

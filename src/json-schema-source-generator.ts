@@ -83,6 +83,7 @@ export function generateZodSourceFromJsonSchema(
     options.defaultNonNullable ?? true,
     options.useZodMini ?? false,
     options.openEndedEnums ?? false,
+    options.trimStrings ?? false,
   );
 
   const bodyLines: string[] = [];

@@ -35,6 +35,7 @@ Run `npx openapi-to-zod --help` for the full option reference.
 | `--use-date-codecs`                 | Emit `z.codec(...)` for `date` / `date-time` formats, converting to `Date`     |
 | `--alphabetical`                    | Sort object property keys and enum values alphabetically                       |
 | `--open-ended-enums`                | Emit string enums as open-ended unions (see [Open-ended enums](#open-ended-enums)) |
+| `--trim-strings`                    | Emit `.trim()` on plain string schemas, before length/pattern checks           |
 | `--no-strict`                       | Collect all error-level diagnostics instead of throwing on the first           |
 | `--no-strict-additional-properties` | Don't append `.strict()` for `additionalProperties: false`                     |
 | `--no-default-non-nullable`         | Emit `.optional()` for non-required properties even when they have a `default` |
