@@ -1,6 +1,6 @@
 {
   "name": "@saunos/openapi-to-zod",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Generate Zod schemas from an OpenAPI spec",
   "license": "MIT",
   "bin": {
