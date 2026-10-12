@@ -404,7 +404,22 @@ describe('ensureSchema', () => {
     expect(diag.list().some((d) => d.code === 'invalid-schema')).toBe(true);
   });
 
-  it('returns undefined for object without type', () => {
+  it.each([
+    ['oneOf', { oneOf: [{ type: 'string' }, { type: 'number' }] }],
+    ['anyOf', { anyOf: [{ type: 'string' }] }],
+    ['allOf', { allOf: [{ type: 'object' }] }],
+    ['$ref', { $ref: '#/components/schemas/Foo' }],
+    ['enum', { enum: ['a', 'b'] }],
+    ['const', { const: 'a' }],
+    ['properties', { properties: { a: { type: 'string' } } }],
+    ['items', { items: { type: 'string' } }],
+  ])('accepts typeless schema with %s', (_keyword, schema) => {
+    const diag = makeDiag();
+    expect(ensureSchema(schema, '#', diag)).toBe(schema);
+    expect(diag.list()).toHaveLength(0);
+  });
+
+  it('returns undefined for object without any schema keyword', () => {
     const diag = makeDiag();
     expect(ensureSchema({ foo: 'bar' }, '#', diag)).toBeUndefined();
     expect(diag.list().some((d) => d.code === 'invalid-schema')).toBe(true);

@@ -577,6 +577,38 @@ describe('generateZodSourceFromOpenApi - multiple responses', () => {
 // ---------------------------------------------------------------------------
 // Component cross-references
 // ---------------------------------------------------------------------------
+describe('generateZodSourceFromOpenApi - typeless component schemas', () => {
+  it('generates a union for a discriminated oneOf component in strict mode', async () => {
+    const { code, diagnostics } = await generateZodSourceFromOpenApi(
+      makeSpec({
+        schemas: {
+          Cat: {
+            type: 'object',
+            properties: { kind: { const: 'cat' } },
+            required: ['kind'],
+          },
+          Dog: {
+            type: 'object',
+            properties: { kind: { const: 'dog' } },
+            required: ['kind'],
+          },
+          Pet: {
+            oneOf: [{ $ref: '#/components/schemas/Cat' }, { $ref: '#/components/schemas/Dog' }],
+            discriminator: {
+              propertyName: 'kind',
+              mapping: { cat: '#/components/schemas/Cat', dog: '#/components/schemas/Dog' },
+            },
+          },
+        },
+      }),
+      { strict: true },
+    );
+    expect(diagnostics).toHaveLength(0);
+    expect(code).not.toContain('PetSchema = z.unknown()');
+    expect(code).toMatch(/PetSchema = z\.union\(\[/);
+  });
+});
+
 describe('generateZodSourceFromOpenApi - component cross-references', () => {
   it('generates z.lazy() for schema referencing another component', async () => {
     const { code } = await generate(

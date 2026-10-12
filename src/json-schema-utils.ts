@@ -305,15 +305,42 @@ export function normalizeRequestBody(
 }
 
 /**
+ * Keywords that mark an object as a JSON Schema even when it has no `type`.
+ * Composition schemas (`oneOf`/`anyOf`/`allOf`), bare `$ref`s, and
+ * `enum`/`const` schemas are all valid without one, as are objects and arrays
+ * whose type the converter infers from `properties`/`items` (see `inferType`).
+ */
+const SCHEMA_KEYWORDS = [
+  'type',
+  '$ref',
+  'oneOf',
+  'anyOf',
+  'allOf',
+  'enum',
+  'const',
+  'properties',
+  'additionalProperties',
+  'items',
+] as const;
+
+/**
  * Ensures that the input is a valid JSON schema object.
+ *
+ * An object qualifies when it carries at least one of {@link SCHEMA_KEYWORDS};
+ * this rejects arbitrary objects such as `{ foo: 'bar' }` while accepting
+ * typeless schemas like discriminated `oneOf` unions.
+ *
  * @param input - The input to validate.
  * @param pointer - The JSON Pointer to the input location.
  * @param diagnostics - The diagnostic collector to report errors.
+ * @returns The input typed as a schema, or `undefined` (plus an
+ *   `invalid-schema` diagnostic) when it is not recognisable as one.
  *
  * @example
  * ```ts
- * ensureSchema({ type: 'string' }, '#/foo', diag); // => { type: 'string' }
- * ensureSchema('invalid', '#/foo', diag);           // => undefined (+ diagnostic)
+ * ensureSchema({ type: 'string' }, '#/foo', diag);        // => { type: 'string' }
+ * ensureSchema({ oneOf: [{ type: 'string' }] }, '#/foo', diag); // => the union schema
+ * ensureSchema('invalid', '#/foo', diag);                  // => undefined (+ diagnostic)
  * ```
  */
 export function ensureSchema(
@@ -321,7 +348,7 @@ export function ensureSchema(
   pointer: string,
   diagnostics: DiagnosticCollector,
 ): IJsonSchema | undefined {
-  if (isObject(input) && 'type' in input) {
+  if (isObject(input) && SCHEMA_KEYWORDS.some((keyword) => keyword in input)) {
     return input as IJsonSchema;
   }
   diagnostics.push('invalid-schema', 'Expected schema object', pointer);
