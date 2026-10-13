@@ -57,6 +57,13 @@ OPTIONS
   --trim-strings                   Emit .trim() on plain string schemas (no
                                    format), applied before min/max/pattern
                                    checks.
+  --trim-strings-scope <all|request>
+                                   Where --trim-strings applies (default: all).
+                                   "request" trims only path params, query
+                                   params and request bodies; components they
+                                   reference get a trimmed <Name>InputSchema
+                                   copy, exported as components.inputSchemas.
+                                   OpenAPI mode only.
   --mini                           Emit zod/mini-compatible code: import from
                                    "zod/mini" and use the functional API
                                    (.check(), z.optional(), z.nullable(),
@@ -89,6 +96,7 @@ EXAMPLES
                                  --override "#/paths/~1pets/get/queryParams=petsQuerySchema"
   openapi-to-zod api.json out.ts --alphabetical
   openapi-to-zod api.json out.ts --no-default-non-nullable
+  openapi-to-zod api.json out.ts --trim-strings --trim-strings-scope request
   openapi-to-zod api.json out.ts --no-strict --no-strict-additional-properties
 `.trimStart(),
   );
@@ -106,6 +114,23 @@ const defaultNonNullable = !args.includes('--no-default-non-nullable');
 const useZodMini = args.includes('--mini');
 const openEndedEnums = args.includes('--open-ended-enums');
 const trimStrings = args.includes('--trim-strings');
+
+// Parse --trim-strings-scope <all|request>
+let trimStringsScope: GenerateZodSourceOptions['trimStringsScope'];
+const scopeIndex = args.indexOf('--trim-strings-scope');
+if (scopeIndex !== -1) {
+  const value = args[scopeIndex + 1];
+  if (value !== 'all' && value !== 'request') {
+    console.error('Error: --trim-strings-scope must be "all" or "request".');
+    process.exit(1);
+  }
+  if (!trimStrings) {
+    console.error('Error: --trim-strings-scope requires --trim-strings.');
+    process.exit(1);
+  }
+  flagValueIndices.add(scopeIndex + 1);
+  trimStringsScope = value;
+}
 
 // Parse --override pointer=expr pairs
 const overrides: Record<string, string> = {};
@@ -160,6 +185,7 @@ const result = jsonSchemaMode
       useZodMini,
       openEndedEnums,
       trimStrings,
+      ...(trimStringsScope ? { trimStringsScope } : {}),
       ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     } satisfies GenerateZodSourceOptions);
 

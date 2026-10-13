@@ -173,6 +173,123 @@ describe('generateZodSourceFromOpenApi - trimStrings', () => {
   });
 });
 
+describe('generateZodSourceFromOpenApi - trimStringsScope request', () => {
+  const spec = makeSpec({
+    schemas: {
+      User: {
+        type: 'object',
+        properties: { name: { type: 'string' }, address: { $ref: '#/components/schemas/Address' } },
+      },
+      Address: { type: 'object', properties: { street: { type: 'string' } } },
+      Status: { type: 'string', enum: ['a', 'b'] },
+      Order: {
+        type: 'object',
+        properties: { status: { $ref: '#/components/schemas/Status' }, qty: { type: 'integer' } },
+      },
+      Report: { type: 'object', properties: { title: { type: 'string' } } },
+    },
+    paths: {
+      '/users': {
+        post: {
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' } },
+            { name: 'when', in: 'query', schema: { type: 'string', format: 'date' } },
+          ],
+          requestBody: {
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } },
+          },
+          responses: {
+            '200': {
+              description: 'ok',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      user: { $ref: '#/components/schemas/User' },
+                      note: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/orders': {
+        post: {
+          requestBody: {
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Order' } } },
+          },
+          responses: {
+            '200': {
+              description: 'ok',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Report' } } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  it('trims request positions through input variants and leaves responses untouched', async () => {
+    const { code } = await generate(spec, { trimStrings: true, trimStringsScope: 'request' });
+    expect(code).toContain('const UserSchema = z.object({\n  name: z.string().optional(),');
+    expect(code).toContain(
+      'const UserInputSchema = z.object({\n  name: z.string().trim().optional(),',
+    );
+    // Transitive: User -> Address, so Address needs a variant and UserInput references it.
+    expect(code).toContain(
+      'const AddressInputSchema = z.object({\n  street: z.string().trim().optional(),',
+    );
+    expect(code).toContain('return AddressInputSchema.optional()');
+    expect(code).toContain('"application/json": UserInputSchema,');
+    expect(code).toContain('q: z.string().trim(),');
+    expect(code).toContain('note: z.string().optional(),');
+    expect(code).toContain('return UserSchema.optional()');
+  });
+
+  it('skips variants for components that would not change or are not request-reachable', async () => {
+    const { code } = await generate(spec, { trimStrings: true, trimStringsScope: 'request' });
+    // Order is request-reachable but has no plain strings (enum + integer).
+    expect(code).not.toContain('OrderInputSchema');
+    expect(code).not.toContain('StatusInputSchema');
+    expect(code).toContain('"application/json": OrderSchema,');
+    // Report is only used in a response.
+    expect(code).not.toContain('ReportInputSchema');
+  });
+
+  it('exports input variants under components.inputSchemas', async () => {
+    const { code } = await generate(spec, { trimStrings: true, trimStringsScope: 'request' });
+    expect(code).toContain(
+      '  inputSchemas: {\n    Address: AddressInputSchema,\n    User: UserInputSchema,\n  },',
+    );
+  });
+
+  it('emits codecs used only in request positions', async () => {
+    const { code } = await generate(spec, {
+      trimStrings: true,
+      trimStringsScope: 'request',
+      useDateCodecs: true,
+    });
+    expect(code).toContain('const isoDateToDate = z.codec(');
+  });
+
+  it('is ignored when trimStrings is off', async () => {
+    const { code } = await generate(spec, { trimStringsScope: 'request' });
+    expect(code).not.toContain('.trim()');
+    expect(code).not.toContain('InputSchema');
+    expect(code).not.toContain('inputSchemas');
+  });
+
+  it("matches the default behaviour with scope 'all'", async () => {
+    const all = await generate(spec, { trimStrings: true, trimStringsScope: 'all' });
+    const unscoped = await generate(spec, { trimStrings: true });
+    expect(all.code).toBe(unscoped.code);
+    expect(all.code).not.toContain('InputSchema');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // defaultNonNullable option
 // ---------------------------------------------------------------------------

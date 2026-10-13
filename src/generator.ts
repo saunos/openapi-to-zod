@@ -25,6 +25,7 @@ import type {
 import { DiagnosticCollector } from './diagnostics-collector';
 import { SchemaToZodConverter } from './schema-to-zod-converter';
 import {
+  collectSchemaRefs,
   ensureObject,
   ensureSchema,
   escapeJsonPointer,
@@ -32,6 +33,7 @@ import {
   normalizeParameters,
   normalizeRequestBody,
   normalizeResponse,
+  resolveRef,
   sortKeys,
   toIdentifier,
   toPropertyKey,
@@ -257,19 +259,37 @@ function emitSource(
   options: GenerateZodSourceOptions = {},
 ): string {
   const componentSchemaVarNames = buildComponentSchemaVarNames(model.components.schemas);
-  const converter = new SchemaToZodConverter(
-    openApiObject,
+  const trimStrings = options.trimStrings ?? false;
+  const requestOnlyTrim = trimStrings && options.trimStringsScope === 'request';
+
+  /** Builds a converter that shares every option except the var-name map and trimming. */
+  const createConverter = (
+    varNames: Record<string, string>,
+    collector: DiagnosticCollector,
+    trim: boolean,
+  ) =>
+    new SchemaToZodConverter(
+      openApiObject,
+      varNames,
+      collector,
+      options.useDateCodecs ?? false,
+      options.overrides ?? {},
+      options.overrideCallback,
+      options.strictAdditionalProperties ?? true,
+      options.alphabetical ?? false,
+      options.defaultNonNullable ?? true,
+      options.useZodMini ?? false,
+      options.openEndedEnums ?? false,
+      trim,
+    );
+
+  // `converter` handles component schemas and responses. `inputConverter`
+  // handles request positions (path params, query params, request bodies).
+  // They are the same instance unless trimming is restricted to requests.
+  const converter = createConverter(
     componentSchemaVarNames,
     diagnostics,
-    options.useDateCodecs ?? false,
-    options.overrides ?? {},
-    options.overrideCallback,
-    options.strictAdditionalProperties ?? true,
-    options.alphabetical ?? false,
-    options.defaultNonNullable ?? true,
-    options.useZodMini ?? false,
-    options.openEndedEnums ?? false,
-    options.trimStrings ?? false,
+    trimStrings && !requestOnlyTrim,
   );
 
   // Collect body lines first so we know which codecs were used before assembling the header
@@ -281,13 +301,44 @@ function emitSource(
     const m = /^#\/components\/schemas\/([^/]+)$/.exec(ref);
     return m ? unescapeJsonPointer(m[1] ?? '') : undefined;
   });
+  const componentExprs: Record<string, string> = {};
   for (const schemaName of componentSchemaOrder) {
     const schemaVarName = componentSchemaVarNames[schemaName];
     const schemaExpr = converter.convert(
       model.components.schemas[schemaName],
       `#/components/schemas/${escapeJsonPointer(schemaName)}`,
     );
+    componentExprs[schemaName] = schemaExpr;
     bodyLines.push(`const ${schemaVarName} = ${schemaExpr};`);
+  }
+
+  let inputConverter = converter;
+  let inputSchemaVarNames: Record<string, string> = {};
+  if (requestOnlyTrim) {
+    // The probe uses a throwaway non-strict collector: the real conversions
+    // report the same diagnostics, so keeping these would duplicate them.
+    const probe = createConverter(componentSchemaVarNames, new DiagnosticCollector(false), true);
+    const inputComponents = findInputComponents(model, openApiObject, componentExprs, probe);
+    inputSchemaVarNames = buildInputSchemaVarNames(
+      inputComponents,
+      new Set(Object.values(componentSchemaVarNames)),
+    );
+    inputConverter = createConverter(
+      { ...componentSchemaVarNames, ...inputSchemaVarNames },
+      diagnostics,
+      true,
+    );
+    // Same topological order as the base variables, so an input variant is
+    // declared after any input variants it references.
+    for (const schemaName of componentSchemaOrder) {
+      const inputVarName = inputSchemaVarNames[schemaName];
+      if (!inputVarName) continue;
+      const schemaExpr = inputConverter.convert(
+        model.components.schemas[schemaName],
+        `#/components/schemas/${escapeJsonPointer(schemaName)}`,
+      );
+      bodyLines.push(`const ${inputVarName} = ${schemaExpr};`);
+    }
   }
 
   if (componentSchemaOrder.length > 0) {
@@ -312,7 +363,7 @@ function emitSource(
         'path-params',
         op.path,
         options,
-        converter,
+        inputConverter,
         `#/paths/${escapeJsonPointer(pathKey)}/${method}/parameters`,
       );
       if (pathParamsOverride !== undefined) {
@@ -320,7 +371,7 @@ function emitSource(
       } else {
         bodyLines.push('      path: z.object({');
         for (const paramName of sortKeys(op.path)) {
-          const expr = converter.convert(
+          const expr = inputConverter.convert(
             op.path[paramName],
             `#/paths/${escapeJsonPointer(pathKey)}/${method}/parameters/${escapeJsonPointer(paramName)}/schema`,
           );
@@ -336,7 +387,7 @@ function emitSource(
         'query-params',
         op.query,
         options,
-        converter,
+        inputConverter,
         `#/paths/${escapeJsonPointer(pathKey)}/${method}/parameters`,
       );
       if (queryParamsOverride !== undefined) {
@@ -344,7 +395,7 @@ function emitSource(
       } else {
         bodyLines.push('      query: z.object({');
         for (const paramName of sortKeys(op.query)) {
-          const expr = converter.convert(
+          const expr = inputConverter.convert(
             op.query[paramName],
             `#/paths/${escapeJsonPointer(pathKey)}/${method}/parameters/${escapeJsonPointer(paramName)}/schema`,
           );
@@ -361,7 +412,7 @@ function emitSource(
           'request-body',
           op.requestBody,
           options,
-          converter,
+          inputConverter,
           requestBodyPointer,
         );
         if (requestBodyOverride !== undefined) {
@@ -369,7 +420,7 @@ function emitSource(
         } else {
           bodyLines.push('      requestBody: {');
           for (const mediaType of sortKeys(op.requestBody)) {
-            const expr = converter.convert(
+            const expr = inputConverter.convert(
               op.requestBody[mediaType],
               `#/paths/${escapeJsonPointer(pathKey)}/${method}/requestBody/content/${escapeJsonPointer(mediaType)}/schema`,
             );
@@ -418,6 +469,14 @@ function emitSource(
     bodyLines.push(`    ${toPropertyKey(schemaName)}: ${componentSchemaVarNames[schemaName]},`);
   }
   bodyLines.push('  },');
+  const inputSchemaNames = sortKeys(inputSchemaVarNames);
+  if (inputSchemaNames.length > 0) {
+    bodyLines.push('  inputSchemas: {');
+    for (const schemaName of inputSchemaNames) {
+      bodyLines.push(`    ${toPropertyKey(schemaName)}: ${inputSchemaVarNames[schemaName]},`);
+    }
+    bodyLines.push('  },');
+  }
 
   bodyLines.push('} as const;');
 
@@ -427,7 +486,7 @@ function emitSource(
     (options.useZodMini ?? false) ? "import * as z from 'zod/mini';" : "import * as z from 'zod';",
   );
 
-  const usedCodecs = converter.getUsedCodecs();
+  const usedCodecs = new Set([...converter.getUsedCodecs(), ...inputConverter.getUsedCodecs()]);
   if (usedCodecs.size > 0) {
     headerLines.push('');
     if (usedCodecs.has('datetime')) {
@@ -603,6 +662,141 @@ function buildComponentSchemaVarNames(
   }
 
   return mapping;
+}
+
+/**
+ * Assigns `<Name>InputSchema` variable names to the components that need a
+ * request-side (trimmed) variant, avoiding every name already in use.
+ *
+ * @param componentNames - Components that need an input variant.
+ * @param usedNames - Variable names already taken (the base component variables).
+ * @returns Map of component schema name to its input variant's variable name.
+ */
+function buildInputSchemaVarNames(
+  componentNames: ReadonlySet<string>,
+  usedNames: ReadonlySet<string>,
+): Record<string, string> {
+  const used = new Set(usedNames);
+  const mapping: Record<string, string> = {};
+
+  for (const name of [...componentNames].sort((a, b) => a.localeCompare(b))) {
+    const base = `${toIdentifier(name)}InputSchema`;
+    let candidate = base;
+    let index = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}${index}`;
+      index += 1;
+    }
+    used.add(candidate);
+    mapping[name] = candidate;
+  }
+
+  return mapping;
+}
+
+/**
+ * Decides which component schemas need a trimmed `InputSchema` variant when
+ * trimming is restricted to request positions.
+ *
+ * A component needs one when (1) a path param, query param or request body
+ * reaches it through `$ref`s, and (2) its trimmed form differs from the base
+ * variable: either its own expression changes under trimming, or it references
+ * another component that needs a variant. Condition (2) is a fixed point,
+ * computed by repeatedly propagating "needs a variant" from a component to the
+ * components that reference it, until nothing changes. This keeps
+ * components with no plain strings (enums, numeric objects) from being
+ * duplicated.
+ *
+ * @param model - The extracted model; request roots and component schemas come from here.
+ * @param openApiObject - The root document, used to follow non-component local `$ref`s.
+ * @param baseExprs - Each component's already-generated untrimmed expression.
+ * @param probe - A trimming converter that maps refs to the base variables, so
+ *   comparing its output with `baseExprs` isolates the component's own trimming.
+ * @returns Names of the components that need an input variant.
+ */
+function findInputComponents(
+  model: ExtractedModel,
+  openApiObject: OpenApiObject,
+  baseExprs: Record<string, string>,
+  probe: SchemaToZodConverter,
+): Set<string> {
+  const componentSchemas = model.components.schemas;
+  const probeDiagnostics = new DiagnosticCollector(false);
+
+  /**
+   * Returns the component names a schema references, following other local
+   * refs (e.g. `#/components/schemas/X/properties/y`) since the converter
+   * inlines those.
+   */
+  const directComponentRefs = (schema: unknown): Set<string> => {
+    const found = new Set<string>();
+    const seenRefs = new Set<string>();
+    const visit = (node: unknown): void => {
+      for (const ref of collectSchemaRefs(node)) {
+        if (seenRefs.has(ref)) continue;
+        seenRefs.add(ref);
+        const m = /^#\/components\/schemas\/([^/]+)$/.exec(ref);
+        if (m) {
+          const name = unescapeJsonPointer(m[1] ?? '');
+          if (name in componentSchemas) found.add(name);
+        } else {
+          visit(resolveRef(ref, openApiObject, '#', probeDiagnostics));
+        }
+      }
+    };
+    visit(schema);
+    return found;
+  };
+
+  const deps = new Map<string, Set<string>>();
+  for (const name of Object.keys(componentSchemas)) {
+    deps.set(name, directComponentRefs(componentSchemas[name]));
+  }
+
+  // Breadth-first walk from every request position to every component it can reach.
+  const reachable = new Set<string>();
+  const queue: string[] = [];
+  for (const methods of Object.values(model.paths)) {
+    for (const op of Object.values(methods)) {
+      const roots = [
+        ...Object.values(op.path),
+        ...Object.values(op.query),
+        ...Object.values(op.requestBody ?? {}),
+      ];
+      for (const root of roots) {
+        for (const name of directComponentRefs(root)) queue.push(name);
+      }
+    }
+  }
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    if (reachable.has(name)) continue;
+    reachable.add(name);
+    for (const dep of deps.get(name) ?? []) queue.push(dep);
+  }
+
+  const needsInput = new Set<string>();
+  for (const name of reachable) {
+    const trimmedExpr = probe.convert(
+      componentSchemas[name],
+      `#/components/schemas/${escapeJsonPointer(name)}`,
+    );
+    if (trimmedExpr !== baseExprs[name]) needsInput.add(name);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const name of reachable) {
+      if (needsInput.has(name)) continue;
+      if ([...(deps.get(name) ?? [])].some((dep) => needsInput.has(dep))) {
+        needsInput.add(name);
+        changed = true;
+      }
+    }
+  }
+
+  return needsInput;
 }
 
 /**

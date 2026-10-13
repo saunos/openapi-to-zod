@@ -139,6 +139,20 @@ export type GenerateZodSourceOptions = {
    * Defaults to `false`.
    */
   trimStrings?: boolean;
+  /**
+   * Where {@link trimStrings} applies. Ignored unless `trimStrings` is `true`.
+   *
+   * - `"all"` (default) - every plain string schema is trimmed, including
+   *   responses.
+   * - `"request"` - only path parameters, query parameters and request bodies
+   *   are trimmed. Responses and the exported component schemas are left
+   *   untouched. Because a component schema is a single shared variable, any
+   *   component reachable from a request position that would change under
+   *   trimming gets a trimmed `<Name>InputSchema` copy, which request
+   *   positions reference instead. These copies are also exported as
+   *   `components.inputSchemas`.
+   */
+  trimStringsScope?: 'all' | 'request';
 };
 
 /**

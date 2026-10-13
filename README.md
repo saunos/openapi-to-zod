@@ -36,6 +36,7 @@ Run `npx openapi-to-zod --help` for the full option reference.
 | `--alphabetical`                    | Sort object property keys and enum values alphabetically                       |
 | `--open-ended-enums`                | Emit string enums as open-ended unions (see [Open-ended enums](#open-ended-enums)) |
 | `--trim-strings`                    | Emit `.trim()` on plain string schemas, before length/pattern checks           |
+| `--trim-strings-scope <all\|request>` | Limit `--trim-strings` to path/query params and request bodies (see [Trimming request strings](#trimming-request-strings)) |
 | `--no-strict`                       | Collect all error-level diagnostics instead of throwing on the first           |
 | `--no-strict-additional-properties` | Don't append `.strict()` for `additionalProperties: false`                     |
 | `--no-default-non-nullable`         | Emit `.optional()` for non-required properties even when they have a `default` |
@@ -120,6 +121,36 @@ Any string passes validation, while the `string & {}` branch keeps the known mem
 
 ```ts
 const { code } = await generateZodSourceFromOpenApi(spec, { openEndedEnums: true });
+```
+
+## Trimming request strings
+
+`trimStrings: true` (or `--trim-strings`) adds `.trim()` to every plain string schema, responses included. To trim only what clients send, also pass `trimStringsScope: 'request'` (or `--trim-strings-scope request`). Path parameters, query parameters and request bodies are then trimmed, and responses are left as they are.
+
+A component schema is one shared variable, so it can't be trimmed for requests only. Instead, any component that a request reaches through `$ref` and that would change under trimming gets a trimmed copy named `<Name>InputSchema`. Request positions reference that copy, and the original stays untrimmed for responses:
+
+```ts
+const UserSchema = z.object({ name: z.string().min(1) });
+const UserInputSchema = z.object({ name: z.string().trim().min(1) });
+
+export const paths = {
+  '/users': {
+    post: {
+      requestBody: { 'application/json': UserInputSchema },
+      responses: { '200': UserSchema },
+      // ...
+    },
+  },
+} as const;
+```
+
+Components with no plain strings anywhere in their tree (enums, numeric objects) don't get a copy. The copies are exported as `components.inputSchemas`. Overrides keyed on a component pointer apply to both the original and its copy.
+
+```ts
+const { code } = await generateZodSourceFromOpenApi(spec, {
+  trimStrings: true,
+  trimStringsScope: 'request',
+});
 ```
 
 ## Zod Mini
@@ -302,6 +333,9 @@ export const paths = {
 export const components = {
   schemas: {
     MyModel: MyModelSchema,
+  },
+  inputSchemas: {               // only with trimStringsScope: 'request'
+    MyModel: MyModelInputSchema,
   },
 } as const;
 ```
